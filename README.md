@@ -122,6 +122,15 @@ make test
 | `refresh_minutes`  | Intervalle de rafraîchissement météo             |
 | `forecast_hours`   | Horizon de prévision pour les accessoires futurs |
 | `forecast_step_hours` | Granularité des tranches (3h sur l'API gratuite) |
+| `identity_on_each_refresh` | `true` / `false` : nouveau couple genre / variante à chaque fetch météo ou identité fixe. **Si la clé est absente** et `refresh_minutes` ≤ 1, la rotation est **activée** (pratique pour les tests) ; sinon identité fixe au démarrage (comportement Pi). |
+| `character_variant_max` | Borne supérieure du numéro tiré au hasard (1…N, défaut **6**) |
+
+---
+
+## Personnages : variantes et repli automatique
+
+- Les types **très froid / très chaud** du moteur météo utilisent les sprites **`cold_*`** et **`hot_*`** (pas de fichiers `verycold` / `veryhot` requis).
+- Si `normal_woman5.png` est absent, l’app charge **`normal_woman4`** … jusqu’à **`…1`** dès qu’un fichier existe, ce qui permet d’ajouter les images progressivement.
 
 ---
 
@@ -142,6 +151,8 @@ weatherdress/
 ├── locale/              # fichiers JSON par langue (fr, en, …)
 ├── weather.py           # appel OpenWeatherMap
 ├── outfit.py            # logique tenue et accessoires
+├── character_assets.py  # résolution des PNG personnage (repli numéro)
+├── identity_config.py   # règle rotation d’identité (refresh / option)
 ├── display.py           # rendu pygame
 ├── config.json          # (non commité — créer depuis config.example.json)
 ├── config.example.json  # référence
@@ -154,7 +165,9 @@ weatherdress/
 ├── requirements-dev.txt
 ├── tests/
 │   ├── test_outfit.py
-│   └── test_i18n.py
+│   ├── test_i18n.py
+│   ├── test_character_assets.py
+│   └── test_identity_config.py
 └── images/
     ├── characters/
     └── accessories/

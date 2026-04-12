@@ -1,4 +1,4 @@
-from outfit import character_type, active_accessories, get_outfit_with_identity
+from outfit import character_type, active_accessories, get_outfit_with_identity, pick_identity
 
 
 def test_character_type_snow():
@@ -43,6 +43,38 @@ def test_accessories_scarf_cold():
 def test_accessories_scarf_wind():
     w = {"rain": 0, "snow": 0, "wind_kmh": 35, "clouds": 50, "hour": 9, "temp": 15}
     assert "scarf" in active_accessories(w)
+
+
+def test_get_outfit_verycold_uses_cold_sprite_prefix():
+    current = {
+        "temp": -15,
+        "snow": 0,
+        "rain": 0,
+        "wind_kmh": 5,
+        "clouds": 50,
+        "hour": 12,
+    }
+    r = get_outfit_with_identity(current, [], "man", 2)
+    assert r["character"] == "cold_man2"
+
+
+def test_get_outfit_veryhot_uses_hot_sprite_prefix():
+    current = {
+        "temp": 30,
+        "snow": 0,
+        "rain": 0,
+        "wind_kmh": 5,
+        "clouds": 50,
+        "hour": 12,
+    }
+    r = get_outfit_with_identity(current, [], "woman", 1)
+    assert r["character"] == "hot_woman1"
+
+
+def test_pick_identity_respects_character_variant_max():
+    for _ in range(50):
+        _, n = pick_identity({"character_variant_max": 3})
+        assert 1 <= n <= 3
 
 
 def test_get_outfit_with_identity_structure():

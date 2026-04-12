@@ -2,6 +2,7 @@ import os
 import pygame
 
 import i18n
+import character_assets
 
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
@@ -70,8 +71,9 @@ def render(screen, outfit, current_weather, images_dir, config):
 
     screen.fill(background_color(config))
 
-    char_path = os.path.join(images_dir, "characters", f"{outfit['character']}.png")
-    char_img = load_image(char_path)
+    chars_dir = os.path.join(images_dir, "characters")
+    char_path = character_assets.resolve_character_png(chars_dir, outfit["character"])
+    char_img = load_image(char_path) if char_path else None
 
     # Zone du personnage : 70% de la hauteur, centré
     char_max_h = int(screen_h * 0.80)

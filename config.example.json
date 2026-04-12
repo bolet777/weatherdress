@@ -9,5 +9,7 @@
   "screen_height": 480,
   "refresh_minutes": 60,
   "forecast_hours": 8,
-  "forecast_step_hours": 3
+  "forecast_step_hours": 3,
+  "identity_on_each_refresh": false,
+  "character_variant_max": 6
 }

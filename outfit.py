@@ -16,13 +16,26 @@ def character_type(temp, snow):
     return "verycold"
 
 
-def pick_identity():
+def character_sprite_prefix(ctype):
+    """Préfixe des fichiers PNG (verycold/veryhot n'ont pas de dossier dédié dans les assets)."""
+    if ctype == "verycold":
+        return "cold"
+    if ctype == "veryhot":
+        return "hot"
+    return ctype
+
+
+def pick_identity(config=None):
     """
-    Choisi genre et numéro une seule fois au démarrage.
-    Retourne ("woman", 1) ou ("man", 1) — extensible si on ajoute woman2, man2, etc.
+    Choisit genre et numéro de variante (1…N).
+    `character_variant_max` dans config (défaut 6) borne le tirage aléatoire.
     """
+    cfg = config or {}
     gender = random.choice(["woman", "man"])
-    return gender, 1
+    max_n = int(cfg.get("character_variant_max", 6))
+    max_n = max(1, min(max_n, 99))
+    number = random.randint(1, max_n)
+    return gender, number
 
 
 def active_accessories(weather):
@@ -64,7 +77,8 @@ def get_outfit(current_weather, forecast_slices):
 
 def get_outfit_with_identity(current_weather, forecast_slices, gender, number):
     ctype = character_type(current_weather["temp"], current_weather["snow"])
-    character = f"{ctype}_{gender}{number}"
+    prefix = character_sprite_prefix(ctype)
+    character = f"{prefix}_{gender}{number}"
 
     current_acc = active_accessories(current_weather)
 

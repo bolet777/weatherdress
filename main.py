@@ -8,6 +8,7 @@ import weather
 import outfit
 import display
 import i18n
+import identity_config
 
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
@@ -35,8 +36,8 @@ def main():
     )
     pygame.display.set_caption(i18n.t(config, "window_title"))
 
-    # Genre et numéro fixes pour toute la session
-    gender, number = outfit.pick_identity()
+    rotate_identity = identity_config.identity_on_each_refresh(config)
+    gender, number = outfit.pick_identity(config)
 
     refresh_interval = config["refresh_minutes"] * 60
     last_refresh = 0
@@ -72,6 +73,8 @@ def main():
                     units=config["units"],
                     lang=lang,
                 )
+                if rotate_identity:
+                    gender, number = outfit.pick_identity(config)
                 current_outfit = outfit.get_outfit_with_identity(
                     current_weather_data, forecast, gender, number
                 )
