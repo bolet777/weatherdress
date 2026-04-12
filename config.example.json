@@ -1,0 +1,10 @@
+{
+  "api_key": "VOTRE_CLE_OPENWEATHERMAP_ICI",
+  "city": "Montreal,CA",
+  "units": "metric",
+  "screen_width": 800,
+  "screen_height": 480,
+  "refresh_minutes": 60,
+  "forecast_hours": 8,
+  "forecast_step_hours": 3
+}

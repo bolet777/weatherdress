@@ -1,0 +1,15 @@
+[Unit]
+Description=WeatherDress — affichage météo habillé
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/weatherdress/main.py
+WorkingDirectory=/home/pi/weatherdress
+Restart=on-failure
+RestartSec=10
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+
+[Install]
+WantedBy=multi-user.target
