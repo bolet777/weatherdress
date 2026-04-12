@@ -12,6 +12,14 @@ BADGE_BG_COLOR = (220, 50, 50)
 BADGE_TEXT_COLOR = (255, 255, 255)
 FUTURE_ALPHA = 120  # transparence des accessoires futurs
 
+ACCESSORY_BADGE_OFFSET = {
+    "umbrella": (0.2, 0.8),
+    "sunglasses": (0.5, 0.1),
+    "hat": (0.5, 0.05),
+    "boots": (0.7, 0.85),
+    "scarf": (0.6, 0.4),
+}
+
 
 def background_color(config):
     """Couleur de fond depuis config (RGB 0–255). Défaut blanc si absent ou invalide."""
@@ -52,9 +60,9 @@ def fit_image(img, max_width, max_height):
 
 def draw_badge(surface, text, center):
     """Dessine une pastille ronde avec le texte centré."""
-    font = pygame.font.SysFont("sans-serif", 18, bold=True)
+    font = pygame.font.SysFont("sans-serif", 14, bold=True)
     text_surf = font.render(text, True, BADGE_TEXT_COLOR)
-    padding = 10
+    padding = 6
     radius = max(text_surf.get_width(), text_surf.get_height()) // 2 + padding
     badge_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
     pygame.draw.circle(badge_surf, BADGE_BG_COLOR, (radius, radius), radius)
@@ -110,9 +118,12 @@ def render(screen, outfit, current_weather, images_dir, config):
             ghost = acc_img.copy()
             ghost.set_alpha(FUTURE_ALPHA)
             screen.blit(ghost, char_rect)
-            # Pastille en bas à droite de l'accessoire
             badge_text = f"{item['hour']}H"
-            badge_center = (char_rect.right - 20, char_rect.bottom - 20)
+            offset = ACCESSORY_BADGE_OFFSET.get(item["accessory"], (0.8, 0.2))
+            badge_center = (
+                char_rect.left + int(char_rect.width * offset[0]),
+                char_rect.top + int(char_rect.height * offset[1]),
+            )
             draw_badge(screen, badge_text, badge_center)
 
     # Barre d'info en bas
