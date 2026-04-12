@@ -10,6 +10,7 @@ TEXT_ON_LIGHT_BG = (40, 40, 40)
 TEXT_ON_DARK_BG = (245, 245, 245)
 BADGE_BG_COLOR = (220, 50, 50)
 BADGE_TEXT_COLOR = (255, 255, 255)
+BADGE_AA_SCALE = 3  # sur-échantillonnage du cercle puis lissage (anti-crénelage)
 FUTURE_ALPHA = 120  # transparence des accessoires futurs
 
 ACCESSORY_BADGE_OFFSET = {
@@ -64,8 +65,13 @@ def draw_badge(surface, text, center):
     text_surf = font.render(text, True, BADGE_TEXT_COLOR)
     padding = 6
     radius = max(text_surf.get_width(), text_surf.get_height()) // 2 + padding
-    badge_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-    pygame.draw.circle(badge_surf, BADGE_BG_COLOR, (radius, radius), radius)
+
+    scale = BADGE_AA_SCALE
+    hi = pygame.Surface((radius * 2 * scale, radius * 2 * scale), pygame.SRCALPHA)
+    c = radius * scale
+    pygame.draw.circle(hi, BADGE_BG_COLOR, (c, c), radius * scale)
+    badge_surf = pygame.transform.smoothscale(hi, (radius * 2, radius * 2))
+
     badge_surf.blit(
         text_surf,
         (radius - text_surf.get_width() // 2, radius - text_surf.get_height() // 2),
