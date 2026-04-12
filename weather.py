@@ -5,11 +5,14 @@ from datetime import datetime, timezone
 BASE_URL = "https://api.openweathermap.org/data/2.5"
 
 
-def get_current_weather(api_key, city, units="metric"):
-    """Retourne les conditions météo actuelles."""
+def get_current_weather(api_key, city, units="metric", lang=None):
+    """Retourne les conditions météo actuelles. `lang` : code ISO pour les libellés (ex. fr, en)."""
+    params = {"q": city, "appid": api_key, "units": units}
+    if lang:
+        params["lang"] = lang
     resp = requests.get(
         f"{BASE_URL}/weather",
-        params={"q": city, "appid": api_key, "units": units},
+        params=params,
         timeout=10,
     )
     resp.raise_for_status()
@@ -27,14 +30,17 @@ def get_current_weather(api_key, city, units="metric"):
     }
 
 
-def get_forecast(api_key, city, hours=8, units="metric"):
+def get_forecast(api_key, city, hours=8, units="metric", lang=None):
     """
     Retourne les tranches de prévision sur les prochaines `hours` heures.
     L'API gratuite fournit des tranches de 3h.
     """
+    params = {"q": city, "appid": api_key, "units": units}
+    if lang:
+        params["lang"] = lang
     resp = requests.get(
         f"{BASE_URL}/forecast",
-        params={"q": city, "appid": api_key, "units": units},
+        params=params,
         timeout=10,
     )
     resp.raise_for_status()

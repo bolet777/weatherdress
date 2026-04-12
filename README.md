@@ -115,6 +115,7 @@ make test
 | `fullscreen`       | `true` plein écran (Pi), `false` fenêtre (tests Mac) |
 | `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |
+| `language`         | Optionnel : défaut **`fr`**. Interface + paramètre `lang` OpenWeatherMap (`"en"`, `"de"`, … — voir `locale/` et [codes API](https://openweathermap.org/current#multi)) |
 | `units`            | `"metric"` (Celsius) ou `"imperial"`             |
 | `screen_width`     | Largeur écran en pixels                          |
 | `screen_height`    | Hauteur écran en pixels                          |
@@ -124,11 +125,21 @@ make test
 
 ---
 
+## Langues et traductions
+
+- `language` dans `config.json` charge `locale/<code>.json` (clés manquantes complétées par `locale/en.json`). Sans cette clé, la langue par défaut est le **français** ; mettre `"language": "en"` pour l’anglais.
+- Les **descriptions météo** (nuages, pluie, etc.) viennent d’OpenWeatherMap dans la même langue lorsque l’API la supporte ([liste des codes](https://openweathermap.org/current#multi)).
+- Pour ajouter une langue : copier `locale/en.json` vers `locale/de.json` (par ex.), traduire les valeurs, puis `"language": "de"`.
+
+---
+
 ## Structure du projet
 
 ```
 weatherdress/
 ├── main.py              # point d'entrée
+├── i18n.py              # chargement des traductions
+├── locale/              # fichiers JSON par langue (fr, en, …)
 ├── weather.py           # appel OpenWeatherMap
 ├── outfit.py            # logique tenue et accessoires
 ├── display.py           # rendu pygame
@@ -142,7 +153,8 @@ weatherdress/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── tests/
-│   └── test_outfit.py
+│   ├── test_outfit.py
+│   └── test_i18n.py
 └── images/
     ├── characters/
     └── accessories/

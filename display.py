@@ -1,6 +1,8 @@
 import os
 import pygame
 
+import i18n
+
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
 TEXT_ON_LIGHT_BG = (40, 40, 40)
@@ -113,7 +115,12 @@ def render(screen, outfit, current_weather, images_dir, config):
 
     # Barre d'info en bas
     font_info = pygame.font.SysFont("sans-serif", 22)
-    temp_str = f"{current_weather['temp']:.0f}°C  —  {current_weather['description'].capitalize()}"
+    deg = "°C" if config.get("units", "metric") == "metric" else "°F"
+    temp_part = f"{current_weather['temp']:.0f}{deg}"
+    desc = current_weather["description"]
+    temp_str = i18n.substitute(
+        config, "weather_bar", temp=temp_part, description=desc
+    )
     info_surf = font_info.render(temp_str, True, primary_text_color(config))
     screen.blit(info_surf, info_surf.get_rect(center=(screen_w // 2, screen_h - 24)))
 

@@ -1,6 +1,7 @@
 {
   "api_key": "VOTRE_CLE_OPENWEATHERMAP_ICI",
   "city": "Montreal,CA",
+  "language": "fr",
   "units": "metric",
   "fullscreen": true,
   "background_color": [255, 255, 255],

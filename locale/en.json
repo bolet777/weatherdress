@@ -1,0 +1,8 @@
+{
+  "window_title": "WeatherDress",
+  "weather_bar": "{temp} — {description}",
+  "weather_loading": "Loading weather…",
+  "error_weather_title": "Could not fetch weather.",
+  "error_api_key_hint": "Check api_key: use an OpenWeatherMap API key (openweathermap.org), not another service.",
+  "console_weather_error": "Weather error: {error}"
+}

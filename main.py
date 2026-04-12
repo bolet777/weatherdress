@@ -7,6 +7,7 @@ import pygame
 import weather
 import outfit
 import display
+import i18n
 
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
@@ -32,7 +33,7 @@ def main():
     screen = pygame.display.set_mode(
         (config["screen_width"], config["screen_height"]), flags
     )
-    pygame.display.set_caption("WeatherDress")
+    pygame.display.set_caption(i18n.t(config, "window_title"))
 
     # Genre et numéro fixes pour toute la session
     gender, number = outfit.pick_identity()
@@ -57,14 +58,19 @@ def main():
         now = time.time()
         if now - last_refresh >= refresh_interval:
             try:
+                lang = i18n.effective_language(config)
                 current_weather_data = weather.get_current_weather(
-                    config["api_key"], config["city"], config["units"]
+                    config["api_key"],
+                    config["city"],
+                    config["units"],
+                    lang=lang,
                 )
                 forecast = weather.get_forecast(
                     config["api_key"],
                     config["city"],
                     hours=config["forecast_hours"],
                     units=config["units"],
+                    lang=lang,
                 )
                 current_outfit = outfit.get_outfit_with_identity(
                     current_weather_data, forecast, gender, number
@@ -73,7 +79,7 @@ def main():
                 last_refresh = now
             except Exception as e:
                 err = str(e)
-                print(f"Erreur météo : {e}")
+                print(i18n.t(config, "console_weather_error", error=e))
                 last_weather_error = err
                 # On garde l'affichage précédent, on réessaie dans 5 minutes
                 last_refresh = now - refresh_interval + 300
@@ -85,13 +91,15 @@ def main():
                 screen,
                 config,
                 [
-                    "Impossible de récupérer la météo.",
-                    "Vérifiez api_key : clé OpenWeatherMap (openweathermap.org), pas une autre API.",
+                    i18n.t(config, "error_weather_title"),
+                    i18n.t(config, "error_api_key_hint"),
                     last_weather_error[:120],
                 ],
             )
         else:
-            display.render_status(screen, config, ["Chargement météo…"])
+            display.render_status(
+                screen, config, [i18n.t(config, "weather_loading")]
+            )
 
         clock.tick(1)  # 1 fps suffit, c'est une appli statique
 

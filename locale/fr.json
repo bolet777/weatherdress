@@ -1,0 +1,8 @@
+{
+  "window_title": "WeatherDress",
+  "weather_bar": "{temp} — {description}",
+  "weather_loading": "Chargement météo…",
+  "error_weather_title": "Impossible de récupérer la météo.",
+  "error_api_key_hint": "Vérifiez api_key : clé OpenWeatherMap (openweathermap.org), pas une autre API.",
+  "console_weather_error": "Erreur météo : {error}"
+}
