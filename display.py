@@ -8,7 +8,7 @@ import character_assets
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
 TEXT_ON_LIGHT_BG = (40, 40, 40)
 TEXT_ON_DARK_BG = (245, 245, 245)
-BADGE_BG_COLOR = (50, 50, 50)
+BADGE_BG_COLOR = (220, 50, 50)
 BADGE_TEXT_COLOR = (255, 255, 255)
 FUTURE_ALPHA = 120  # transparence des accessoires futurs
 
@@ -52,9 +52,9 @@ def fit_image(img, max_width, max_height):
 
 def draw_badge(surface, text, center):
     """Dessine une pastille ronde avec le texte centré."""
-    font = pygame.font.SysFont("sans-serif", 14, bold=True)
+    font = pygame.font.SysFont("sans-serif", 18, bold=True)
     text_surf = font.render(text, True, BADGE_TEXT_COLOR)
-    padding = 6
+    padding = 10
     radius = max(text_surf.get_width(), text_surf.get_height()) // 2 + padding
     badge_surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
     pygame.draw.circle(badge_surf, BADGE_BG_COLOR, (radius, radius), radius)
