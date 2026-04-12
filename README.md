@@ -24,6 +24,7 @@ make install
 # 3. Créer config.json
 cp config.example.json config.json
 # Renseigner api_key et city dans config.json
+# Sur Mac : mettre "fullscreen": false pour une fenêtre (tests), true sur le Pi
 
 # 4. Ajouter les images (voir section Images ci-dessous)
 
@@ -111,6 +112,8 @@ make test
 | Clé                | Description                                      |
 |--------------------|--------------------------------------------------|
 | `api_key`          | Clé OpenWeatherMap                               |
+| `fullscreen`       | `true` plein écran (Pi), `false` fenêtre (tests Mac) |
+| `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |
 | `units`            | `"metric"` (Celsius) ou `"imperial"`             |
 | `screen_width`     | Largeur écran en pixels                          |

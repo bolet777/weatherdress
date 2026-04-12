@@ -25,9 +25,10 @@ def main():
     config = load_config()
 
     pygame.init()
-    pygame.mouse.set_visible(False)
+    fullscreen = config.get("fullscreen", True)
+    pygame.mouse.set_visible(not fullscreen)
 
-    flags = pygame.FULLSCREEN
+    flags = pygame.FULLSCREEN if fullscreen else 0
     screen = pygame.display.set_mode(
         (config["screen_width"], config["screen_height"]), flags
     )
@@ -40,6 +41,7 @@ def main():
     last_refresh = 0
     current_outfit = None
     current_weather_data = None
+    last_weather_error = None
 
     clock = pygame.time.Clock()
 
@@ -67,14 +69,29 @@ def main():
                 current_outfit = outfit.get_outfit_with_identity(
                     current_weather_data, forecast, gender, number
                 )
+                last_weather_error = None
                 last_refresh = now
             except Exception as e:
+                err = str(e)
                 print(f"Erreur météo : {e}")
+                last_weather_error = err
                 # On garde l'affichage précédent, on réessaie dans 5 minutes
                 last_refresh = now - refresh_interval + 300
 
         if current_outfit and current_weather_data:
             display.render(screen, current_outfit, current_weather_data, IMAGES_DIR, config)
+        elif last_weather_error:
+            display.render_status(
+                screen,
+                config,
+                [
+                    "Impossible de récupérer la météo.",
+                    "Vérifiez api_key : clé OpenWeatherMap (openweathermap.org), pas une autre API.",
+                    last_weather_error[:120],
+                ],
+            )
+        else:
+            display.render_status(screen, config, ["Chargement météo…"])
 
         clock.tick(1)  # 1 fps suffit, c'est une appli statique
 
