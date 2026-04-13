@@ -92,10 +92,10 @@ journalctl -u weatherdress -f
 ## Déploiement depuis le Mac
 
 ```bash
-make deploy HOST=pi@raspberrypi.local
+make deploy HOST=weather@weatherdress.local
 ```
 
-Cela synchronise les fichiers (hors `config.json`) et redémarre le service.
+Connexion SSH au Pi, exécution de `~/weatherdress/launch.sh` : `git pull origin main` puis redémarrage du service systemd.
 
 ---
 
@@ -159,7 +159,7 @@ weatherdress/
 ├── weatherdress.service # service systemd
 ├── install.sh           # setup Pi
 ├── uninstall.sh         # suppression service Pi
-├── deploy.sh            # déploiement depuis Mac
+├── launch.sh            # sur le Pi : git pull + restart systemd
 ├── Makefile
 ├── requirements.txt
 ├── requirements-dev.txt

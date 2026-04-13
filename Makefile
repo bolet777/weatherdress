@@ -7,8 +7,12 @@ run:
 	python main.py
 
 deploy:
-	@if [ -z "$(HOST)" ]; then echo "Usage: make deploy HOST=pi@raspberrypi.local"; exit 1; fi
-	./deploy.sh $(HOST)
+	@if [ -z "$(HOST)" ]; then \
+		echo "Erreur: HOST non défini."; \
+		echo "Usage: make deploy HOST=weather@weatherdress.local"; \
+		exit 1; \
+	fi
+	ssh "$(HOST)" 'cd ~/weatherdress && ./launch.sh'
 
 test:
 	pytest tests/
