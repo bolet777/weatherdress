@@ -44,3 +44,30 @@ def substitute(config, key, **parts):
     for name, value in parts.items():
         text = text.replace("{" + name + "}", str(value))
     return text
+
+
+def format_weather_future_note(config, future_accessories):
+    """Suffixe barre météo : accessoires futurs. Locales : weather_future_segment_<nom>."""
+    if not future_accessories:
+        return ""
+    msgs = messages(config)
+    parts = []
+    for item in future_accessories:
+        acc = item["accessory"]
+        key = f"weather_future_segment_{acc}"
+        hour = item["hour"]
+        hours = item.get("hours_from_now", "")
+        if key in msgs:
+            parts.append(substitute(config, key, hour=hour, hours=hours))
+        else:
+            parts.append(
+                substitute(
+                    config,
+                    "weather_future_segment_fallback",
+                    hour=hour,
+                    hours=hours,
+                    accessory=acc,
+                )
+            )
+    joined = ", ".join(parts)
+    return substitute(config, "weather_future_note", segments=joined)

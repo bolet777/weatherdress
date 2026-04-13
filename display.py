@@ -176,8 +176,13 @@ def render(screen, outfit, current_weather, images_dir, config):
     deg = "°C" if config.get("units", "metric") == "metric" else "°F"
     temp_part = f"{current_weather['temp']:.0f}{deg}"
     desc = current_weather["description"]
+    future_note = i18n.format_weather_future_note(config, outfit["future_accessories"])
     temp_str = i18n.substitute(
-        config, "weather_bar", temp=temp_part, description=desc
+        config,
+        "weather_bar",
+        temp=temp_part,
+        description=desc,
+        future_note=future_note,
     )
     info_surf = font_info.render(
         temp_str, True, _primary_text_color_for_rgb(circle_background_color(config))

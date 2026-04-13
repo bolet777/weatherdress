@@ -88,7 +88,13 @@ def get_outfit_with_identity(current_weather, forecast_slices, gender, number):
     for slice_ in forecast_slices:
         for acc in active_accessories(slice_):
             if acc not in seen:
-                future_acc.append({"accessory": acc, "hour": slice_["hour"]})
+                future_acc.append(
+                    {
+                        "accessory": acc,
+                        "hour": slice_["hour"],
+                        "hours_from_now": slice_.get("hours_from_now", 1),
+                    }
+                )
                 seen.add(acc)
 
     return {

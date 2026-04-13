@@ -28,9 +28,24 @@ def test_substitute_weather_bar():
         "weather_bar",
         temp="12°C",
         description="ciel dégagé",
+        future_note="",
     )
     assert "12°C" in line
     assert "ciel dégagé" in line
+
+
+def test_format_weather_future_note_umbrella_fr():
+    cfg = {"language": "fr"}
+    note = i18n.format_weather_future_note(
+        cfg,
+        [{"accessory": "umbrella", "hour": 20, "hours_from_now": 5}],
+    )
+    assert "pluie" in note
+    assert "5H" in note
+
+
+def test_format_weather_future_note_empty():
+    assert i18n.format_weather_future_note({"language": "fr"}, []) == ""
 
 
 def test_substitute_braces_in_description_unchanged_as_literal():
@@ -40,5 +55,6 @@ def test_substitute_braces_in_description_unchanged_as_literal():
         "weather_bar",
         temp="1°F",
         description="weird {not a placeholder} sky",
+        future_note="",
     )
     assert "{not a placeholder}" in line

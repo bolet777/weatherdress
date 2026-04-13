@@ -80,7 +80,15 @@ def test_pick_identity_respects_character_variant_max():
 def test_get_outfit_with_identity_structure():
     current = {"temp": 20, "snow": 0, "rain": 0, "wind_kmh": 10, "clouds": 20, "hour": 12}
     forecast = [
-        {"temp": 18, "snow": 0, "rain": 2, "wind_kmh": 10, "clouds": 60, "hour": 15},
+        {
+            "temp": 18,
+            "snow": 0,
+            "rain": 2,
+            "wind_kmh": 10,
+            "clouds": 60,
+            "hour": 15,
+            "hours_from_now": 3,
+        },
     ]
     result = get_outfit_with_identity(current, forecast, "woman", 1)
     assert result["character"] == "normal_woman1"
@@ -90,3 +98,6 @@ def test_get_outfit_with_identity_structure():
     assert "umbrella" not in result["current_accessories"]
     future_names = [f["accessory"] for f in result["future_accessories"]]
     assert "umbrella" in future_names
+    u = next(f for f in result["future_accessories"] if f["accessory"] == "umbrella")
+    assert u["hour"] == 15
+    assert u["hours_from_now"] == 3

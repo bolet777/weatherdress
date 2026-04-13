@@ -1,3 +1,4 @@
+import math
 import requests
 from datetime import datetime, timezone
 
@@ -55,8 +56,10 @@ def get_forecast(api_key, city, hours=8, units="metric", lang=None):
         if ts <= now or ts > limit:
             continue
         dt_local = datetime.fromtimestamp(ts)
+        hours_from_now = max(1, math.ceil((ts - now) / 3600))
         slices.append({
             "hour": dt_local.hour,
+            "hours_from_now": hours_from_now,
             "temp": item["main"]["temp"],
             "description": item["weather"][0]["description"],
             "icon": item["weather"][0]["icon"],
