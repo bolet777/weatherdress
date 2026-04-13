@@ -97,6 +97,10 @@ make deploy HOST=weather@weatherdress.local
 
 Connexion SSH au Pi, exécution de `~/weatherdress/launch.sh` : `git pull origin main` puis redémarrage du service systemd.
 
+`weather.local` est un **exemple** : il faut le nom mDNS réel du Pi (souvent `raspberrypi.local` si inchangé) ou, si macOS n’arrive pas à résoudre `*.local` (`Could not resolve hostname`), l’**adresse IP** du Pi sur le LAN, par ex. `make deploy HOST=weather@192.168.1.42`.
+
+Le dépôt sur le Pi doit contenir **`launch.sh`** (même branche que sur le Mac, typiquement `main`). Sinon, une première fois en SSH : `cd ~/weather && git pull origin main`.
+
 ---
 
 ## Tests

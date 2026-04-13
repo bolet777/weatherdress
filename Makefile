@@ -9,10 +9,11 @@ run:
 deploy:
 	@if [ -z "$(HOST)" ]; then \
 		echo "Erreur: HOST non défini."; \
-		echo "Usage: make deploy HOST=weather@weatherdress.local"; \
+		echo "Usage: make deploy HOST=weather@weather.local"; \
 		exit 1; \
 	fi
-	ssh "$(HOST)" 'cd ~/weatherdress && ./launch.sh'
+	@echo "==> Connexion à $(HOST) (git pull + redémarrage du service)…"
+	ssh -tt -o ConnectTimeout=20 "$(HOST)" 'cd ~/weatherdress || { echo "[deploy] Dossier ~/weatherdress introuvable." >&2; exit 1; }; test -f launch.sh || { echo "[deploy] launch.sh absent sur le Pi : git pull origin main dans ~/weatherdress (fichier sur main)." >&2; exit 1; }; bash ./launch.sh'
 
 test:
 	pytest tests/
