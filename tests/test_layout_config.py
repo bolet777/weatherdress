@@ -1,4 +1,4 @@
-import layout_config
+import weatherdress.layout_config as layout_config
 
 
 def test_effective_layout_defaults():

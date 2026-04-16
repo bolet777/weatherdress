@@ -1,4 +1,4 @@
-import identity_config
+import weatherdress.identity_config as identity_config
 
 
 def test_identity_explicit_true():

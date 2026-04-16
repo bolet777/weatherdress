@@ -3,8 +3,9 @@ Description=WeatherDress — affichage météo habillé
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /home/pi/weatherdress/main.py
+ExecStart=/usr/bin/python3 -m weatherdress.main
 WorkingDirectory=/home/pi/weatherdress
+Environment=PYTHONPATH=/home/pi/weatherdress/src
 Restart=on-failure
 RestartSec=10
 User=pi

@@ -1,7 +1,7 @@
 import os
 import tempfile
 
-import character_assets
+import weatherdress.character_assets as character_assets
 
 
 def test_resolve_falls_back_to_lower_number():

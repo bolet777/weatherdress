@@ -3,10 +3,10 @@ import textwrap
 
 import pygame
 
-import background_assets
-import character_assets
-import i18n
-import layout_config
+from . import background_assets
+from . import character_assets
+from . import i18n
+from . import layout_config
 
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)

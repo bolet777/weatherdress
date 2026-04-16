@@ -1,7 +1,9 @@
 import json
 import os
 
-_LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locale")
+from .paths import LOCALES_DIR
+
+_LOCALES_DIR = str(LOCALES_DIR)
 
 # Si `language` est absent de config.json (anciens fichiers), on reste cohérent avec config.example.json
 DEFAULT_LANGUAGE = "fr"
@@ -20,7 +22,7 @@ def _load_locale(code):
 
 
 def messages(config):
-    """Textes pour la langue demandée, complétés par l’anglais pour les clés manquantes."""
+    """Textes pour la langue demandée, complétés par l'anglais pour les clés manquantes."""
     lang = effective_language(config)
     base = _load_locale("en")
     if lang == "en":

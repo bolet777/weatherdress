@@ -1,4 +1,9 @@
-from outfit import character_type, active_accessories, get_outfit_with_identity, pick_identity
+from weatherdress.outfit import (
+    active_accessories,
+    character_type,
+    get_outfit_with_identity,
+    pick_identity,
+)
 
 
 def test_character_type_snow():

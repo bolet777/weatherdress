@@ -57,16 +57,18 @@ Depuis la racine du dépôt (`weatherdress/`) :
 make run
 ```
 
-Ou le script dédié macOS (active `.venv` s’il existe, puis lance `python3 main.py`) :
+(`make run` définit `PYTHONPATH=src` et lance `python3 -m weatherdress.main`.)
+
+Ou le script dédié macOS (active `.venv` s’il existe, puis lance le module avec `PYTHONPATH=src`) :
 
 ```bash
-./launch_macos.sh
+./scripts/launch_macos.sh
 ```
 
-Cela revient à exécuter `python3 main.py` depuis la racine du projet. Si la commande `python` n’existe pas, utiliser explicitement :
+Équivalent manuel depuis la racine du dépôt :
 
 ```bash
-python3 main.py
+PYTHONPATH=src python3 -m weatherdress.main
 ```
 
 **Quitter** : touche `Échap` lorsque la fenêtre Pygame a le focus.
@@ -118,10 +120,21 @@ Elles sont superposées sur le personnage — prévoir un fond transparent.
 cp config.example.json config.json
 nano config.json   # renseigner api_key et city
 
-bash install.sh
+bash scripts/install.sh
 ```
 
-Le service démarre automatiquement au boot.
+Le service démarre automatiquement au boot. Le unit systemd est copié depuis `packaging/weatherdress.service` (`ExecStart` : `python3 -m weatherdress.main`, `PYTHONPATH` pointant vers `src/`).
+
+### Mise à jour d’un Pi déjà configuré (après `git pull`)
+
+Après réception du nouveau layout (`src/`, `scripts/`, `packaging/`), exécuter une fois depuis le clone :
+
+```bash
+cd ~/weatherdress && git pull
+bash scripts/install.sh
+```
+
+Cela recopie le fichier service et recharge systemd. À défaut : `sudo cp packaging/weatherdress.service /etc/systemd/system/`, puis `sudo systemctl daemon-reload` et `sudo systemctl restart weatherdress`.
 
 Commandes utiles :
 ```bash
@@ -138,11 +151,11 @@ journalctl -u weatherdress -f
 make deploy HOST=weather@weatherdress.local
 ```
 
-Connexion SSH au Pi, exécution de `~/weatherdress/launch.sh` : `git pull origin main` puis redémarrage du service systemd.
+Connexion SSH au Pi, exécution de `~/weatherdress/scripts/launch.sh` : `git pull origin main` puis redémarrage du service systemd.
 
 `weather.local` est un **exemple** : il faut le nom mDNS réel du Pi (souvent `raspberrypi.local` si inchangé) ou, si macOS n’arrive pas à résoudre `*.local` (`Could not resolve hostname`), l’**adresse IP** du Pi sur le LAN, par ex. `make deploy HOST=weather@192.168.1.42`.
 
-Le dépôt sur le Pi doit contenir **`launch.sh`** (même branche que sur le Mac, typiquement `main`). Sinon, une première fois en SSH : `cd ~/weather && git pull origin main`.
+Le dépôt sur le Pi doit contenir **`scripts/launch.sh`** (même branche que sur le Mac, typiquement `main`). Sinon, une première fois en SSH : `cd ~/weatherdress && git pull origin main`.
 
 ---
 
@@ -196,29 +209,27 @@ make test
 
 ```
 weatherdress/
-├── main.py              # point d'entrée
-├── i18n.py              # chargement des traductions
+├── src/
+│   └── weatherdress/    # package Python (main, display, météo, i18n, …)
+├── scripts/
+│   ├── install.sh       # setup Pi (dépendances + service systemd)
+│   ├── uninstall.sh     # suppression du service sur le Pi
+│   ├── launch.sh        # sur le Pi : git pull + restart systemd
+│   └── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
+├── packaging/
+│   └── weatherdress.service
 ├── locale/              # fichiers JSON par langue (fr, en, …)
-├── weather.py           # appel OpenWeatherMap
-├── outfit.py            # logique tenue et accessoires
-├── character_assets.py  # résolution des PNG personnage (repli numéro)
-├── identity_config.py   # règle rotation d’identité (refresh / option)
-├── display.py           # rendu pygame
-├── background_assets.py # fond d’écran selon OpenWeatherMap + JSON
-├── layout_config.py     # défauts mise en page (surchargés par config.layout)
 ├── config.json          # (non commité — créer depuis config.example.json)
 ├── config.example.json  # référence
-├── weatherdress.service # service systemd
-├── install.sh           # setup Pi
-├── uninstall.sh         # suppression service Pi
-├── launch.sh            # sur le Pi : git pull + restart systemd
-├── launch_macos.sh      # sur le Mac : lance l’app (venv si présent)
+├── pytest.ini           # pythonpath = src pour les tests
 ├── Makefile
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── tests/
 │   ├── test_outfit.py
 │   ├── test_i18n.py
+│   ├── test_layout_config.py
+│   ├── test_background_assets.py
 │   ├── test_character_assets.py
 │   └── test_identity_config.py
 └── images/

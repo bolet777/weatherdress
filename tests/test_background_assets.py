@@ -1,6 +1,6 @@
 import os
 
-import background_assets
+import weatherdress.background_assets as background_assets
 
 
 def _map_path():

@@ -4,7 +4,7 @@ install:
 	pip install -r requirements-dev.txt
 
 run:
-	python main.py
+	PYTHONPATH=src python3 -m weatherdress.main
 
 deploy:
 	@if [ -z "$(HOST)" ]; then \
@@ -13,7 +13,7 @@ deploy:
 		exit 1; \
 	fi
 	@echo "==> Connexion à $(HOST) (git pull + redémarrage du service)…"
-	ssh -tt -o ConnectTimeout=20 "$(HOST)" 'cd ~/weatherdress || { echo "[deploy] Dossier ~/weatherdress introuvable." >&2; exit 1; }; test -f launch.sh || { echo "[deploy] launch.sh absent sur le Pi : git pull origin main dans ~/weatherdress (fichier sur main)." >&2; exit 1; }; bash ./launch.sh'
+	ssh -tt -o ConnectTimeout=20 "$(HOST)" 'cd ~/weatherdress || { echo "[deploy] Dossier ~/weatherdress introuvable." >&2; exit 1; }; test -f scripts/launch.sh || { echo "[deploy] scripts/launch.sh absent sur le Pi : git pull origin main dans ~/weatherdress (fichier sur main)." >&2; exit 1; }; bash ./scripts/launch.sh'
 
 test:
 	pytest tests/

@@ -1,4 +1,4 @@
-import i18n
+import weatherdress.i18n as i18n
 
 
 def test_messages_fr_overrides_en():

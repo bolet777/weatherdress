@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# À exécuter sur le Raspberry Pi depuis le répertoire weatherdress/
+# À exécuter sur le Raspberry Pi depuis le clone (ex. bash scripts/install.sh).
 set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$SCRIPT_DIR/.." && pwd)"
 
 is_raspberry_pi() {
   if [ -f /proc/device-tree/model ]; then
@@ -34,7 +37,7 @@ else
 fi
 
 echo "==> Copie du service systemd..."
-sudo cp weatherdress.service /etc/systemd/system/weatherdress.service
+sudo cp packaging/weatherdress.service /etc/systemd/system/weatherdress.service
 
 echo "==> Activation et démarrage du service..."
 sudo systemctl daemon-reload

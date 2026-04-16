@@ -1,23 +1,23 @@
 import json
-import os
 import sys
 import time
+
 import pygame
 
-import weather
-import outfit
-import display
-import i18n
-import identity_config
-
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
-IMAGES_DIR = os.path.join(os.path.dirname(__file__), "images")
+from . import display
+from . import i18n
+from . import identity_config
+from . import outfit
+from . import weather
+from .paths import CONFIG_PATH, IMAGES_DIR
 
 
 def load_config():
-    if not os.path.exists(CONFIG_PATH):
-        print(f"Erreur : config.json introuvable. Copier config.example.json vers config.json et renseigner la clé API.")
+    if not CONFIG_PATH.is_file():
+        print(
+            "Erreur : config.json introuvable. "
+            "Copier config.example.json vers config.json et renseigner la clé API."
+        )
         sys.exit(1)
     with open(CONFIG_PATH) as f:
         return json.load(f)
@@ -88,7 +88,13 @@ def main():
                 last_refresh = now - refresh_interval + 300
 
         if current_outfit and current_weather_data:
-            display.render(screen, current_outfit, current_weather_data, IMAGES_DIR, config)
+            display.render(
+                screen,
+                current_outfit,
+                current_weather_data,
+                IMAGES_DIR,
+                config,
+            )
         elif last_weather_error:
             display.render_status(
                 screen,

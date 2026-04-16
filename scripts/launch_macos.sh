@@ -2,7 +2,8 @@
 # Lance WeatherDress sur macOS (équivalent à : cd projet && make run).
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT"
 
 if [[ -d ".venv" ]]; then
@@ -10,4 +11,5 @@ if [[ -d ".venv" ]]; then
   source ".venv/bin/activate"
 fi
 
-exec python3 main.py
+export PYTHONPATH="$ROOT/src"
+exec python3 -m weatherdress.main
