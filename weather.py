@@ -19,10 +19,12 @@ def get_current_weather(api_key, city, units="metric", lang=None):
     resp.raise_for_status()
     data = resp.json()
 
+    w0 = data["weather"][0]
     return {
         "temp": data["main"]["temp"],
-        "description": data["weather"][0]["description"],
-        "icon": data["weather"][0]["icon"],
+        "description": w0["description"],
+        "icon": w0["icon"],
+        "condition_id": w0["id"],
         "wind_kmh": data["wind"]["speed"] * 3.6,
         "rain": data.get("rain", {}).get("1h", 0),
         "snow": data.get("snow", {}).get("1h", 0),

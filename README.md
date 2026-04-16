@@ -12,27 +12,70 @@ Affiche un personnage habillé selon la météo actuelle. Conçu pour un Raspber
 
 ---
 
-## Setup local (Mac)
+## Lancer sous macOS
+
+Le projet tourne en **Python** avec **Pygame** (fenêtre graphique). Il faut l’exécuter depuis le **Terminal** (ou un terminal intégré à l’IDE), pas en SSH sans affichage graphique.
+
+### Prérequis sur le Mac
+
+- **Python 3.10 ou plus récent** et **pip**. Vérifier : `python3 --version`  
+  Si besoin : installer [Python pour macOS](https://www.python.org/downloads/macos/) ou via Homebrew : `brew install python`.
+- **Git** et **make** (souvent déjà présents). Les outils de ligne de commande Xcode : `xcode-select --install` si `git` ou `make` est introuvable.
+- **Clé API** OpenWeatherMap (voir la section **Prérequis** plus haut).
+
+### Installation et configuration
 
 ```bash
 # 1. Cloner le dépôt
 git clone <repo> weatherdress && cd weatherdress
 
-# 2. Installer les dépendances
+# 2. (Optionnel) Environnement virtuel — recommandé pour isoler les paquets
+python3 -m venv .venv
+source .venv/bin/activate   # à refaire à chaque nouveau terminal
+
+# 3. Dépendances Python
 make install
+# équivalent : pip install -r requirements-dev.txt
+```
 
-# 3. Créer config.json
+Créer `config.json` à partir du modèle, renseigner la clé et la ville :
+
+```bash
 cp config.example.json config.json
-# Renseigner api_key et city dans config.json
-# Sur Mac : mettre "fullscreen": false pour une fenêtre (tests), true sur le Pi
+# Éditer config.json : api_key, city, etc.
+```
 
-# 4. Ajouter les images (voir section Images ci-dessous)
+**Pour le développement sur Mac**, mettre `"fullscreen": false` dans `config.json` pour obtenir une **fenêtre** redimensionnable au lieu du plein écran (sur le Raspberry Pi, on garde en général `"fullscreen": true`).
 
-# 5. Lancer
+Ajouter les images sous `images/` (voir [Images attendues](#images-attendues) ci-dessous).
+
+### Lancer l’application
+
+Depuis la racine du dépôt (`weatherdress/`) :
+
+```bash
 make run
 ```
 
-Appuyer sur `Échap` pour quitter.
+Ou le script dédié macOS (active `.venv` s’il existe, puis lance `python3 main.py`) :
+
+```bash
+./launch_macos.sh
+```
+
+Cela revient à exécuter `python3 main.py` depuis la racine du projet. Si la commande `python` n’existe pas, utiliser explicitement :
+
+```bash
+python3 main.py
+```
+
+**Quitter** : touche `Échap` lorsque la fenêtre Pygame a le focus.
+
+### Dépannage rapide (macOS)
+
+- **`python: command not found`** : utiliser `python3` / `pip3`, ou activer le venv (`source .venv/bin/activate`).
+- **Erreur à l’import ou au lancement de Pygame** : s’assurer d’avoir installé les dépendances dans le même interpréteur que celui utilisé pour lancer (`which python3`).
+- **Fenêtre invisible ou plantage au démarrage** : lancer depuis une session macOS locale avec un écran connecté (pas uniquement SSH sans forwarding graphique).
 
 ---
 
@@ -118,6 +161,8 @@ make test
 | `api_key`          | Clé OpenWeatherMap                               |
 | `fullscreen`       | `true` plein écran (Pi), `false` fenêtre (tests Mac) |
 | `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
+| `use_weather_background` | `true` (défaut) : image de fond selon la météo (`images/backgrounds/` + `background_map.json`). `false` : uniquement `background_color`. Voir `docs/background.md`. |
+| `character_colorkey` | Optionnel : `[R,G,B]` pour rendre cette couleur transparente sur les sprites personnage/accessoires (ex. fond noir `[0,0,0]` si les PNG n’ont pas d’alpha). Risque si le dessin utilise la même couleur. |
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |
 | `language`         | Optionnel : défaut **`fr`**. Interface + paramètre `lang` OpenWeatherMap (`"en"`, `"de"`, … — voir `locale/` et [codes API](https://openweathermap.org/current#multi)) |
 | `units`            | `"metric"` (Celsius) ou `"imperial"`             |
@@ -158,12 +203,14 @@ weatherdress/
 ├── character_assets.py  # résolution des PNG personnage (repli numéro)
 ├── identity_config.py   # règle rotation d’identité (refresh / option)
 ├── display.py           # rendu pygame
+├── background_assets.py # fond d’écran selon OpenWeatherMap + JSON
 ├── config.json          # (non commité — créer depuis config.example.json)
 ├── config.example.json  # référence
 ├── weatherdress.service # service systemd
 ├── install.sh           # setup Pi
 ├── uninstall.sh         # suppression service Pi
 ├── launch.sh            # sur le Pi : git pull + restart systemd
+├── launch_macos.sh      # sur le Mac : lance l’app (venv si présent)
 ├── Makefile
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -173,6 +220,7 @@ weatherdress/
 │   ├── test_character_assets.py
 │   └── test_identity_config.py
 └── images/
+    ├── backgrounds/     # PNG + background_map.json (mapping météo)
     ├── characters/
     └── accessories/
 ```

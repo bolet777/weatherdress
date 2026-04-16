@@ -1,0 +1,29 @@
+{
+  "default_key": "partly_cloudy",
+  "keys_to_file": {
+    "clear": "clear.png",
+    "sunny": "sunny.png",
+    "partly_cloudy": "partly_cloudy.png",
+    "overcast": "overcast.png",
+    "drizzle": "drizzle.png",
+    "rain": "rain.png",
+    "thunderstorm": "thunderstorm.png",
+    "snow": "snow.png",
+    "fog": "overcast.png",
+    "dust": "dust_storm.png"
+  },
+  "rules": [
+    { "condition_id_range": [200, 232], "key": "thunderstorm" },
+    { "condition_id_range": [300, 321], "key": "drizzle" },
+    { "condition_id_range": [500, 531], "key": "rain" },
+    { "condition_id_range": [600, 622], "key": "snow" },
+    { "condition_id": 761, "key": "dust" },
+    { "condition_id_range": [701, 781], "key": "fog" },
+    { "condition_id": 800, "icon_suffix": "d", "key": "sunny" },
+    { "condition_id": 800, "icon_suffix": "n", "key": "clear" },
+    { "condition_id": 801, "key": "partly_cloudy" },
+    { "condition_id": 802, "key": "partly_cloudy" },
+    { "condition_id": 803, "key": "overcast" },
+    { "condition_id": 804, "key": "overcast" }
+  ]
+}
