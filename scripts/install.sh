@@ -5,6 +5,23 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$(cd "$SCRIPT_DIR/.." && pwd)"
 
+INSTALL_DIR="$(pwd)"
+
+# Utilisateur du service : WEATHERDRESS_USER, sinon SUDO_USER (ex. sudo depuis weather), sinon propriétaire du répertoire.
+if [ -n "${WEATHERDRESS_USER:-}" ]; then
+  RUN_USER="$WEATHERDRESS_USER"
+elif [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+  RUN_USER="$SUDO_USER"
+else
+  RUN_USER="$(stat -c '%U' .)"
+fi
+
+RUN_HOME="$(getent passwd "$RUN_USER" | cut -d: -f6)"
+if [ -z "$RUN_HOME" ]; then
+  echo "Erreur : utilisateur système « $RUN_USER » introuvable (WEATHERDRESS_USER / SUDO_USER / propriétaire du clone)." >&2
+  exit 1
+fi
+
 is_raspberry_pi() {
   if [ -f /proc/device-tree/model ]; then
     grep -qi raspberry /proc/device-tree/model 2>/dev/null
@@ -36,8 +53,16 @@ else
   pip3 install "${pip_args[@]}"
 fi
 
-echo "==> Copie du service systemd..."
-sudo cp packaging/weatherdress.service /etc/systemd/system/weatherdress.service
+echo "==> Génération du service systemd (répertoire : $INSTALL_DIR, utilisateur : $RUN_USER)..."
+if [ ! -f packaging/weatherdress.service.in ]; then
+  echo "Erreur : packaging/weatherdress.service.in introuvable." >&2
+  exit 1
+fi
+sed \
+  -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
+  -e "s|@RUN_USER@|${RUN_USER}|g" \
+  -e "s|@RUN_HOME@|${RUN_HOME}|g" \
+  packaging/weatherdress.service.in | sudo tee /etc/systemd/system/weatherdress.service > /dev/null
 
 echo "==> Activation et démarrage du service..."
 sudo systemctl daemon-reload

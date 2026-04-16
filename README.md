@@ -123,7 +123,7 @@ nano config.json   # renseigner api_key et city
 bash scripts/install.sh
 ```
 
-Le service démarre automatiquement au boot. Le unit systemd est copié depuis `packaging/weatherdress.service` (`ExecStart` : `python3 -m weatherdress.main`, `PYTHONPATH` pointant vers `src/`).
+Le service démarre automatiquement au boot. Le unit systemd est **généré** à partir de `packaging/weatherdress.service.in` avec le répertoire courant du clone (`WorkingDirectory`, `PYTHONPATH=…/src`), l’utilisateur graphique (`User`, `XAUTHORITY`) et `python3 -m weatherdress.main`. Lancer l’installation **depuis le répertoire du clone** (après `cd` dans ce dossier). En général : `sudo bash scripts/install.sh` depuis le compte qui possède le clone (ex. `weather`) — `SUDO_USER` sert alors à remplir `User=`. Si vous installez en root sans `SUDO_USER`, définir explicitement `WEATHERDRESS_USER=weather` (ou l’utilisateur qui lance la session X11).
 
 ### Mise à jour d’un Pi déjà configuré (après `git pull`)
 
@@ -134,7 +134,7 @@ cd ~/weatherdress && git pull
 bash scripts/install.sh
 ```
 
-Cela recopie le fichier service et recharge systemd. À défaut : `sudo cp packaging/weatherdress.service /etc/systemd/system/`, puis `sudo systemctl daemon-reload` et `sudo systemctl restart weatherdress`.
+Cela régénère le fichier service (chemins + utilisateur) et recharge systemd. À défaut : relancer `bash scripts/install.sh` depuis le clone, ou régénérer à la main avec le même `sed` que dans `scripts/install.sh`, puis `sudo systemctl daemon-reload` et `sudo systemctl restart weatherdress`.
 
 Commandes utiles :
 ```bash
@@ -217,7 +217,7 @@ weatherdress/
 │   ├── launch.sh        # sur le Pi : git pull + restart systemd
 │   └── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
 ├── packaging/
-│   └── weatherdress.service
+│   └── weatherdress.service.in   # modèle ; le .service installé est généré par install.sh
 ├── locale/              # fichiers JSON par langue (fr, en, …)
 ├── config.json          # (non commité — créer depuis config.example.json)
 ├── config.example.json  # référence
