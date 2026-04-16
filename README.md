@@ -163,6 +163,7 @@ make test
 | `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
 | `use_weather_background` | `true` (défaut) : image de fond selon la météo (`images/backgrounds/` + `background_map.json`). `false` : uniquement `background_color`. Voir `docs/background.md`. |
 | `character_colorkey` | Optionnel : `[R,G,B]` pour rendre cette couleur transparente sur les sprites personnage/accessoires (ex. fond noir `[0,0,0]` si les PNG n’ont pas d’alpha). Risque si le dessin utilise la même couleur. |
+| `layout`           | Objet optionnel : position du personnage, placement du texte météo (`after_character` = à droite du sprite, en haut ; `screen_right` = bord droit), tailles min/max des polices. Détail : `docs/layout.md`. |
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |
 | `language`         | Optionnel : défaut **`fr`**. Interface + paramètre `lang` OpenWeatherMap (`"en"`, `"de"`, … — voir `locale/` et [codes API](https://openweathermap.org/current#multi)) |
 | `units`            | `"metric"` (Celsius) ou `"imperial"`             |
@@ -204,6 +205,7 @@ weatherdress/
 ├── identity_config.py   # règle rotation d’identité (refresh / option)
 ├── display.py           # rendu pygame
 ├── background_assets.py # fond d’écran selon OpenWeatherMap + JSON
+├── layout_config.py     # défauts mise en page (surchargés par config.layout)
 ├── config.json          # (non commité — créer depuis config.example.json)
 ├── config.example.json  # référence
 ├── weatherdress.service # service systemd

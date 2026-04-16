@@ -1,9 +1,12 @@
 import os
+import textwrap
+
 import pygame
 
 import background_assets
 import character_assets
 import i18n
+import layout_config
 
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
@@ -215,6 +218,182 @@ def blit_centered_text_pill(
     surface.blit(pill, pill.get_rect(center=center_xy))
 
 
+def _weather_forecast_line(future_note):
+    """Extrait le texte des parenthèses pour une ligne sous la description (ex. prévisions)."""
+    s = (future_note or "").strip()
+    if not s:
+        return ""
+    if s.startswith("(") and s.endswith(")"):
+        return s[1:-1].strip()
+    return s
+
+
+def _weather_block_text_color(config, use_photo_background, use_circle):
+    """Couleur du bloc météo : clair sur fond photo, sinon contraste avec médaillon ou fond."""
+    if use_photo_background:
+        return (255, 255, 255)
+    if use_circle:
+        return _primary_text_color_for_rgb(circle_background_color(config))
+    return primary_text_color(config)
+
+
+def _blit_text_right(
+    surface, font, text, right_x, top_y, color, shadow=False
+):
+    """Dessine une ligne alignée à droite ; retourne la hauteur."""
+    surf = font.render(text, True, color)
+    rect = surf.get_rect()
+    rect.right = right_x
+    rect.top = top_y
+    if shadow:
+        sh = font.render(text, True, (30, 30, 35))
+        for ox, oy in ((1, 1), (2, 2), (1, 2)):
+            r2 = sh.get_rect()
+            r2.right = right_x + ox
+            r2.top = top_y + oy
+            surface.blit(sh, r2)
+    surface.blit(surf, rect)
+    return rect.height
+
+
+def _blit_text_left(
+    surface, font, text, left_x, top_y, color, shadow=False
+):
+    """Dessine une ligne alignée à gauche ; retourne la hauteur."""
+    surf = font.render(text, True, color)
+    rect = surf.get_rect()
+    rect.left = left_x
+    rect.top = top_y
+    if shadow:
+        sh = font.render(text, True, (30, 30, 35))
+        for ox, oy in ((1, 1), (2, 2), (1, 2)):
+            r2 = sh.get_rect()
+            r2.left = left_x + ox
+            r2.top = top_y + oy
+            surface.blit(sh, r2)
+    surface.blit(surf, rect)
+    return rect.height
+
+
+def _font_size_clamped(layout, key_min, key_max, screen_h, fallback_frac):
+    lo = int(layout[key_min])
+    hi = int(layout[key_max])
+    mid = max(lo, min(hi, int(screen_h * fallback_frac)))
+    return mid
+
+
+def draw_weather_text_block(
+    surface,
+    config,
+    current_weather,
+    outfit,
+    screen_w,
+    screen_h,
+    use_photo_background,
+    use_circle,
+    char_rect,
+    layout,
+):
+    """Température + description : position selon layout (après personnage ou bord droit)."""
+    deg = "°C" if config.get("units", "metric") == "metric" else "°F"
+    temp_line = f"{current_weather['temp']:.0f}{deg}"
+    desc_raw = current_weather.get("description") or ""
+    desc = desc_raw.strip()
+    if desc:
+        desc = desc[0].upper() + desc[1:] if len(desc) > 1 else desc.upper()
+
+    future_note = i18n.format_weather_future_note(config, outfit["future_accessories"])
+    forecast_line = _weather_forecast_line(future_note)
+
+    color = _weather_block_text_color(config, use_photo_background, use_circle)
+    use_shadow = use_photo_background
+
+    margin_right = max(
+        16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
+    )
+    right_x = screen_w - margin_right
+
+    temp_size = _font_size_clamped(
+        layout, "weather_temp_font_min", "weather_temp_font_max", screen_h, 0.22
+    )
+    desc_size = _font_size_clamped(
+        layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.065
+    )
+    note_size = _font_size_clamped(
+        layout, "weather_note_font_min", "weather_note_font_max", screen_h, 0.048
+    )
+
+    font_temp = pygame.font.SysFont("sans-serif", temp_size, bold=True)
+    font_desc = pygame.font.SysFont("sans-serif", desc_size, bold=False)
+    font_note = pygame.font.SysFont("sans-serif", note_size, bold=False)
+
+    mode = layout.get("weather_mode", "after_character")
+    if mode == "screen_right":
+        wrap_cols = max(12, min(22, screen_w // 38))
+    else:
+        gap_px = int(layout["weather_gap_after_character_px"])
+        left_x = char_rect.right + gap_px
+        left_x = max(0, min(left_x, screen_w - 72))
+        avail_px = max(80, right_x - left_x)
+        wrap_cols = max(8, min(28, avail_px // 9))
+
+    desc_lines = textwrap.wrap(desc, width=wrap_cols) if desc else []
+    if not desc_lines and desc:
+        desc_lines = [desc]
+
+    gap_td = 8
+    line_gap = 4
+    temp_h = font_temp.get_height()
+    if desc_lines:
+        dh = font_desc.get_height()
+        desc_block_h = len(desc_lines) * dh + max(0, len(desc_lines) - 1) * line_gap
+    else:
+        desc_block_h = 0
+    note_h = (4 + font_note.get_height()) if forecast_line else 0
+    total_h = temp_h + gap_td + desc_block_h + note_h
+
+    if mode == "screen_right":
+        y = max(int(screen_h * 0.14), (screen_h - total_h) // 2)
+        y += _blit_text_right(
+            surface, font_temp, temp_line, right_x, y, color, shadow=use_shadow
+        )
+        y += gap_td
+        for i, ln in enumerate(desc_lines):
+            y += _blit_text_right(
+                surface, font_desc, ln, right_x, y, color, shadow=use_shadow
+            )
+            if i < len(desc_lines) - 1:
+                y += line_gap
+        if forecast_line:
+            y += 4
+            _blit_text_right(
+                surface, font_note, forecast_line, right_x, y, color, shadow=use_shadow
+            )
+        return
+
+    gap_px = int(layout["weather_gap_after_character_px"])
+    left_x = char_rect.right + gap_px
+    left_x = max(0, min(left_x, screen_w - 72))
+    y = int(float(layout["weather_top_pct"]) * screen_h)
+    y = max(4, min(y, screen_h - total_h - 8))
+
+    y += _blit_text_left(
+        surface, font_temp, temp_line, left_x, y, color, shadow=use_shadow
+    )
+    y += gap_td
+    for i, ln in enumerate(desc_lines):
+        y += _blit_text_left(
+            surface, font_desc, ln, left_x, y, color, shadow=use_shadow
+        )
+        if i < len(desc_lines) - 1:
+            y += line_gap
+    if forecast_line:
+        y += 4
+        _blit_text_left(
+            surface, font_note, forecast_line, left_x, y, color, shadow=use_shadow
+        )
+
+
 def render(screen, outfit, current_weather, images_dir, config):
     screen_w = config["screen_width"]
     screen_h = config["screen_height"]
@@ -234,6 +413,7 @@ def render(screen, outfit, current_weather, images_dir, config):
         screen.fill(background_color(config))
 
     use_photo_background = bg_surf is not None
+    use_circle = not use_photo_background
 
     # Médaillon : uniquement sans image météo plein écran (sinon personnage + texte sur le fond photo)
     if not use_photo_background:
@@ -250,19 +430,21 @@ def render(screen, outfit, current_weather, images_dir, config):
     char_path = character_assets.resolve_character_png(chars_dir, outfit["character"])
     char_img = load_image(char_path) if char_path else None
 
-    # Zone du personnage : 70% de la hauteur, centré
-    char_max_h = int(screen_h * 0.80)
-    char_max_w = int(screen_w * 0.60)
+    layout = layout_config.effective_layout(config)
+    char_center_x = int(screen_w * float(layout["character_center_x_pct"]))
+    char_y = screen_h // 2 + int(layout["character_center_y_offset_px"])
+    char_max_h = int(screen_h * float(layout["character_max_height_pct"]))
+    char_max_w = int(screen_w * float(layout["character_max_width_pct"]))
 
     if char_img:
         char_img = fit_image(char_img, char_max_w, char_max_h)
         char_img = apply_character_colorkey(char_img, config)
-        char_rect = char_img.get_rect(center=(screen_w // 2, screen_h // 2 - 20))
+        char_rect = char_img.get_rect(center=(char_center_x, char_y))
         screen.blit(char_img, char_rect)
     else:
         # Placeholder si l'image est manquante
         char_rect = pygame.Rect(0, 0, 200, 350)
-        char_rect.center = (screen_w // 2, screen_h // 2 - 20)
+        char_rect.center = (char_center_x, char_y)
         if not use_photo_background:
             pygame.draw.rect(screen, (200, 200, 200), char_rect, border_radius=12)
         font = pygame.font.SysFont("sans-serif", 18)
@@ -307,29 +489,18 @@ def render(screen, outfit, current_weather, images_dir, config):
             )
             draw_badge(screen, badge_text, badge_center)
 
-    # Barre d'info en bas
-    font_info = pygame.font.SysFont("sans-serif", 22)
-    deg = "°C" if config.get("units", "metric") == "metric" else "°F"
-    temp_part = f"{current_weather['temp']:.0f}{deg}"
-    desc = current_weather["description"]
-    future_note = i18n.format_weather_future_note(config, outfit["future_accessories"])
-    temp_str = i18n.substitute(
+    draw_weather_text_block(
+        screen,
         config,
-        "weather_bar",
-        temp=temp_part,
-        description=desc,
-        future_note=future_note,
+        current_weather,
+        outfit,
+        screen_w,
+        screen_h,
+        use_photo_background,
+        use_circle,
+        char_rect,
+        layout,
     )
-    bar_center = (screen_w // 2, screen_h - 24)
-    if use_photo_background:
-        blit_centered_text_pill(screen, font_info, temp_str, bar_center)
-    else:
-        info_surf = font_info.render(
-            temp_str,
-            True,
-            _primary_text_color_for_rgb(circle_background_color(config)),
-        )
-        screen.blit(info_surf, info_surf.get_rect(center=bar_center))
 
     pygame.display.flip()
 
