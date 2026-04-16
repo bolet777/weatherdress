@@ -143,6 +143,8 @@ sudo systemctl restart weatherdress
 journalctl -u weatherdress -f
 ```
 
+Si les journaux mentionnent `XDG_RUNTIME_DIR is invalid or not set` : le service généré définit désormais `XDG_RUNTIME_DIR=/run/user/<uid>` (via `scripts/install.sh`). Après mise à jour du dépôt, relancer `bash scripts/install.sh` pour régénérer le fichier unit. Le répertoire `/run/user/<uid>` est en général créé quand l’utilisateur du service ouvre une session graphique au moins une fois (logind).
+
 ---
 
 ## Déploiement depuis le Mac

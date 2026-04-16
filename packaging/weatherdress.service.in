@@ -11,6 +11,8 @@ RestartSec=10
 User=@RUN_USER@
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=@RUN_HOME@/.Xauthority
+Environment=XDG_RUNTIME_DIR=@XDG_RUNTIME_DIR@
+Environment=XDG_SESSION_TYPE=x11
 
 [Install]
 WantedBy=multi-user.target

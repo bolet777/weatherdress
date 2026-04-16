@@ -22,6 +22,10 @@ if [ -z "$RUN_HOME" ]; then
   exit 1
 fi
 
+RUN_UID="$(id -u "$RUN_USER")"
+# Requis par SDL / Pygame sous systemd (sinon « XDG_RUNTIME_DIR is invalid or not set »).
+XDG_RUNTIME_DIR_FOR_SERVICE="/run/user/${RUN_UID}"
+
 is_raspberry_pi() {
   if [ -f /proc/device-tree/model ]; then
     grep -qi raspberry /proc/device-tree/model 2>/dev/null
@@ -53,7 +57,7 @@ else
   pip3 install "${pip_args[@]}"
 fi
 
-echo "==> Génération du service systemd (répertoire : $INSTALL_DIR, utilisateur : $RUN_USER)..."
+echo "==> Génération du service systemd (répertoire : $INSTALL_DIR, utilisateur : $RUN_USER, uid : $RUN_UID)..."
 if [ ! -f packaging/weatherdress.service.in ]; then
   echo "Erreur : packaging/weatherdress.service.in introuvable." >&2
   exit 1
@@ -62,6 +66,7 @@ sed \
   -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
   -e "s|@RUN_USER@|${RUN_USER}|g" \
   -e "s|@RUN_HOME@|${RUN_HOME}|g" \
+  -e "s|@XDG_RUNTIME_DIR@|${XDG_RUNTIME_DIR_FOR_SERVICE}|g" \
   packaging/weatherdress.service.in | sudo tee /etc/systemd/system/weatherdress.service > /dev/null
 
 echo "==> Activation et démarrage du service..."
