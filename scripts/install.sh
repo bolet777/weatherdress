@@ -83,3 +83,9 @@ sudo systemctl start weatherdress
 echo ""
 echo "Service weatherdress démarré."
 echo "Vérifier avec : sudo systemctl status weatherdress"
+if command -v loginctl >/dev/null 2>&1; then
+  echo ""
+  echo "Si les journaux mentionnent encore XDG_RUNTIME_DIR :"
+  echo "  sudo loginctl enable-linger $RUN_USER"
+  echo "(garde /run/user/$RUN_UID actif au boot, utile sans autologin graphique.)"
+fi

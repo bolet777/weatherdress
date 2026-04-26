@@ -1,8 +1,10 @@
 [Unit]
 Description=WeatherDress — affichage météo habillé
-After=network.target
+After=network.target graphical.target
 
 [Service]
+# SDL / Pygame : XDG_RUNTIME_DIR doit exister (souvent absent si pas de session graphique au boot).
+ExecStartPre=/usr/bin/install -d -m 0700 -o @RUN_USER@ -g @RUN_USER@ @XDG_RUNTIME_DIR@
 ExecStart=/usr/bin/python3 -m weatherdress.main
 WorkingDirectory=@INSTALL_DIR@
 Environment=PYTHONPATH=@INSTALL_DIR@/src
