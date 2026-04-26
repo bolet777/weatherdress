@@ -1,5 +1,6 @@
 import os
 import textwrap
+from datetime import datetime
 
 import pygame
 
@@ -21,7 +22,18 @@ CIRCLE_BG_COLOR = (230, 230, 230)
 CIRCLE_RADIUS = 210
 CIRCLE_TOP_INSET = 14  # espace entre le bord haut de l’écran et le sommet du médaillon
 
-TRANSIT_PANEL_HEIGHT = 130  # bandeau bas (bus + métro) ; réserver la même hauteur au layout principal
+TRANSIT_ROW_HEIGHT = 34
+TRANSIT_AFTER_WEATHER_GAP = 16
+TRANSIT_ICON_SLOT = 44
+TRANSIT_FONT_LABEL_PX = 20
+TRANSIT_FONT_TIMES_PX = 20
+TRANSIT_FONT_ICON_M_PX = 16
+# Sur fond clair (après blend image + alpha + background_color)
+TRANSIT_LABEL_ON_LIGHT = (34, 52, 102)
+TRANSIT_TIMES_ON_LIGHT = (168, 82, 22)
+# Sur fond sombre
+TRANSIT_LABEL_ON_DARK = (248, 250, 255)
+TRANSIT_TIMES_ON_DARK = (255, 205, 130)
 
 ACCESSORY_BADGE_OFFSET = {
     "umbrella": (0.2, 0.8),
@@ -65,6 +77,55 @@ def _primary_text_color_for_rgb(rgb):
 def primary_text_color(config):
     """Texte lisible selon la luminance du fond principal (BT.601)."""
     return _primary_text_color_for_rgb(background_color(config))
+
+
+def weather_background_alpha_255(config):
+    """
+    Opacité du fond météo plein écran : 0–1 (ex. 0.85) ou entier 0–255.
+    1.0 / 255 = opaque ; 0 = invisible (seule la couleur `background_color` reste).
+    """
+    raw = config.get("weather_background_alpha", 1.0)
+    try:
+        a = float(raw)
+    except (TypeError, ValueError):
+        return 255
+    if a > 1.0:
+        return max(0, min(255, int(a)))
+    a = max(0.0, min(1.0, a))
+    return int(round(255 * a))
+
+
+def _luminance_bt601(rgb):
+    r, g, b = rgb
+    return 0.299 * r + 0.587 * g + 0.114 * b
+
+
+def transit_composite_rgb_at_screen_point(bg_surf, config, screen_w, screen_h, sx, sy):
+    """
+    Couleur vue derrière le transport : même mélange que à l’écran
+    (image plein écran avec `weather_background_alpha` sur `background_color`).
+    """
+    br, bgc, bb = background_color(config)
+    if bg_surf is None or screen_w <= 0 or screen_h <= 0:
+        return (float(br), float(bgc), float(bb))
+    a = weather_background_alpha_255(config) / 255.0
+    iw, ih = bg_surf.get_size()
+    ix = int(max(0, min(iw - 1, round(sx * (iw - 1) / max(1, screen_w - 1)))))
+    iy = int(max(0, min(ih - 1, round(sy * (ih - 1) / max(1, screen_h - 1)))))
+    pixel = bg_surf.get_at((ix, iy))
+    ir, ig, ib = float(pixel[0]), float(pixel[1]), float(pixel[2])
+    cr = ir * a + br * (1.0 - a)
+    cg = ig * a + bgc * (1.0 - a)
+    cb = ib * a + bb * (1.0 - a)
+    return (cr, cg, cb)
+
+
+def transit_text_colors_for_composite(composite_rgb):
+    """Couleurs libellé + horaires lisibles selon la luminance du fond composite."""
+    lum = _luminance_bt601(composite_rgb)
+    if lum < 138:
+        return (TRANSIT_LABEL_ON_DARK, TRANSIT_TIMES_ON_DARK)
+    return (TRANSIT_LABEL_ON_LIGHT, TRANSIT_TIMES_ON_LIGHT)
 
 
 def load_image(path):
@@ -286,8 +347,8 @@ def _font_size_clamped(layout, key_min, key_max, screen_h, fallback_frac):
 
 
 def transit_panel_reserved_height(config):
-    """Pixels réservés en bas lorsque la section `transit` est activée dans config."""
-    return TRANSIT_PANEL_HEIGHT if transit_module.transit_config_enabled(config) else 0
+    """Le transport est dessiné sous le bloc météo ; plus de bandeau bas réservé."""
+    return 0
 
 
 def draw_weather_text_block(
@@ -303,7 +364,10 @@ def draw_weather_text_block(
     layout,
     usable_screen_h=None,
 ):
-    """Température + description : position selon layout (après personnage ou bord droit)."""
+    """
+    Température + description : position selon layout (après personnage ou bord droit).
+    Retourne { "column_left", "bottom_y" } pour aligner le transport sur la même colonne.
+    """
     deg = "°C" if config.get("units", "metric") == "metric" else "°F"
     temp_line = f"{current_weather['temp']:.0f}{deg}"
     desc_raw = current_weather.get("description") or ""
@@ -363,6 +427,13 @@ def draw_weather_text_block(
     total_h = temp_h + gap_td + desc_block_h + note_h
 
     if mode == "screen_right":
+        max_w = font_temp.size(temp_line)[0]
+        for ln in desc_lines:
+            max_w = max(max_w, font_desc.size(ln)[0])
+        if forecast_line:
+            max_w = max(max_w, font_note.size(forecast_line)[0])
+        column_left = right_x - max_w
+
         y = max(int(uh * 0.14), (uh - total_h) // 2)
         y += _blit_text_right(
             surface, font_temp, temp_line, right_x, y, color, shadow=use_shadow
@@ -376,10 +447,10 @@ def draw_weather_text_block(
                 y += line_gap
         if forecast_line:
             y += 4
-            _blit_text_right(
+            y += _blit_text_right(
                 surface, font_note, forecast_line, right_x, y, color, shadow=use_shadow
             )
-        return
+        return {"column_left": column_left, "bottom_y": y}
 
     gap_px = int(layout["weather_gap_after_character_px"])
     left_x = char_rect.right + gap_px
@@ -399,37 +470,118 @@ def draw_weather_text_block(
             y += line_gap
     if forecast_line:
         y += 4
-        _blit_text_left(
+        y += _blit_text_left(
             surface, font_note, forecast_line, left_x, y, color, shadow=use_shadow
         )
+    return {"column_left": left_x, "bottom_y": y}
 
 
-def draw_transit_panel(screen, transit_data, config):
+TIME_PILL_AA_SCALE = 3
+TIME_PILL_FONT_PX = 28
+TIME_PILL_ICON_R = 12
+TIME_PILL_GAP = 10
+TIME_PILL_PAD_X = 18
+TIME_PILL_PAD_Y = 11
+TIME_PILL_BORDER_R = 12
+
+
+def _draw_simple_clock_icon(surface, center, radius, color, line_width):
+    """Horloge en contour (cercle + aiguilles), pour rendu HR puis réduction."""
+    cx, cy = center
+    pygame.draw.circle(surface, color, (cx, cy), radius, line_width)
+    pygame.draw.line(
+        surface,
+        color,
+        (cx, cy),
+        (cx, cy - max(4, int(radius * 0.67))),
+        line_width,
+    )
+    pygame.draw.line(
+        surface,
+        color,
+        (cx, cy),
+        (cx + max(3, int(radius * 0.55)), cy + max(2, int(radius * 0.22))),
+        line_width,
+    )
+
+
+def draw_time_pill(surface, screen_w, top_margin=12):
+    """Heure locale centrée en haut : dessin HR + smoothscale (bords lissés)."""
+    s = TIME_PILL_AA_SCALE
+    t_str = datetime.now().strftime("%H:%M")
+    fg = (248, 248, 248)
+    bg = (20, 22, 28, 200)
+
+    font_hi = pygame.font.SysFont("sans-serif", TIME_PILL_FONT_PX * s, bold=False)
+    text_surf = font_hi.render(t_str, True, fg)
+    tw, th = text_surf.get_size()
+
+    pad_x = TIME_PILL_PAD_X * s
+    pad_y = TIME_PILL_PAD_Y * s
+    icon_r = TIME_PILL_ICON_R * s
+    gap = TIME_PILL_GAP * s
+    br = TIME_PILL_BORDER_R * s
+    line_w = max(1, 2 * s)
+
+    w_hi = 2 * pad_x + 2 * icon_r + gap + tw
+    h_hi = max(th + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4 * s)
+
+    pill_hi = pygame.Surface((w_hi, h_hi), pygame.SRCALPHA)
+    pygame.draw.rect(pill_hi, bg, pill_hi.get_rect(), border_radius=br)
+
+    cx = pad_x + icon_r
+    cy = h_hi // 2
+    _draw_simple_clock_icon(pill_hi, (cx, cy), icon_r, fg, line_w)
+
+    text_x = pad_x + 2 * icon_r + gap
+    pill_hi.blit(text_surf, (text_x, (h_hi - th) // 2))
+
+    out_w = max(1, round(w_hi / s))
+    out_h = max(1, round(h_hi / s))
+    pill = pygame.transform.smoothscale(pill_hi, (out_w, out_h))
+    surface.blit(pill, pill.get_rect(midtop=(screen_w // 2, top_margin)))
+
+
+def draw_transit_panel(
+    screen,
+    transit_data,
+    config,
+    *,
+    column_left,
+    start_y,
+    margin_right,
+    bg_surf,
+):
     """
     transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
+    Affichage dans le flux, aligné à gauche sur la colonne météo (pas de bandeau plein écran).
     """
     if not transit_module.transit_config_enabled(config):
         return
     transit_data = transit_data or {"bus": {}, "metro": {}}
     screen_w, screen_h = screen.get_size()
-    panel_y = screen_h - TRANSIT_PANEL_HEIGHT
     transit_config = config.get("transit", {}) or {}
     metro_color = tuple(
         transit_config.get("metro_line_color", [0, 70, 168])[:3]
     )
     metro_directions = transit_config.get("metro_directions", {}) or {}
 
-    panel_surf = pygame.Surface((screen_w, TRANSIT_PANEL_HEIGHT), pygame.SRCALPHA)
-    panel_surf.fill((0, 0, 0, 180))
-    screen.blit(panel_surf, (0, panel_y))
+    right_x = screen_w - margin_right
 
-    font_label = pygame.font.SysFont("sans-serif", 17, bold=True)
-    font_times = pygame.font.SysFont("sans-serif", 17)
+    row_height = TRANSIT_ROW_HEIGHT
+    sample_x = max(0, min(screen_w - 1, (column_left + right_x) // 2))
+    sample_y = max(0, min(screen_h - 1, int(start_y) + row_height // 2))
+    composite = transit_composite_rgb_at_screen_point(
+        bg_surf, config, screen_w, screen_h, sample_x, sample_y
+    )
+    lum = _luminance_bt601(composite)
+    label_color, times_color = transit_text_colors_for_composite(composite)
+    sep_rgb = (200, 205, 215) if lum < 138 else (165, 170, 180)
 
-    row_height = 28
-    padding_x = 14
-    padding_y = 6
-    max_rows = max(1, (TRANSIT_PANEL_HEIGHT - 2 * padding_y) // row_height)
+    font_label = pygame.font.SysFont("sans-serif", TRANSIT_FONT_LABEL_PX, bold=True)
+    font_times = pygame.font.SysFont("sans-serif", TRANSIT_FONT_TIMES_PX, bold=True)
+
+    max_rows = max(1, (screen_h - 8 - int(start_y)) // row_height)
 
     rows = []
     for sid, data in sorted(transit_data.get("bus", {}).items(), key=lambda x: x[0]):
@@ -443,33 +595,58 @@ def draw_transit_panel(screen, transit_data, config):
     rows = rows[:max_rows]
 
     for i, (mode, label, minutes, color) in enumerate(rows):
-        y = panel_y + padding_y + i * row_height
+        row_top = int(start_y) + i * row_height
+        if row_top + row_height > screen_h - 4:
+            break
+        mid_y = row_top + row_height // 2
 
-        icon_rect = pygame.Rect(padding_x, y + 2, 40, 22)
+        if i > 0:
+            sep_y = row_top - 3
+            pygame.draw.line(screen, sep_rgb, (column_left, sep_y), (right_x, sep_y), 1)
+
         if mode == "bus":
-            pygame.draw.rect(screen, (60, 120, 200), icon_rect, border_radius=4)
-            icon_text = font_label.render("BUS", True, (255, 255, 255))
+            icon_rect = pygame.Rect(column_left, mid_y - 12, 38, 24)
+            pygame.draw.rect(screen, (60, 120, 200), icon_rect, border_radius=5)
+            bus_font = pygame.font.SysFont("sans-serif", 15, bold=True)
+            icon_text = bus_font.render("BUS", True, (255, 255, 255))
+            screen.blit(icon_text, icon_text.get_rect(center=icon_rect.center))
         else:
-            pygame.draw.ellipse(screen, color, icon_rect)
-            icon_text = font_label.render("M", True, (255, 255, 255))
-        screen.blit(icon_text, icon_text.get_rect(center=icon_rect.center))
+            cr = 14
+            draw_aa_filled_circle(screen, (column_left + cr, mid_y), cr, color)
+            icon_font = pygame.font.SysFont("sans-serif", TRANSIT_FONT_ICON_M_PX, bold=True)
+            icon_text = icon_font.render("M", True, (255, 255, 255))
+            screen.blit(icon_text, icon_text.get_rect(center=(column_left + cr, mid_y)))
 
-        label_surf = font_label.render(label, True, (220, 220, 220))
-        screen.blit(label_surf, (padding_x + 48, y + 2))
+        label_x = column_left + TRANSIT_ICON_SLOT
+        _blit_text_left(
+            screen,
+            font_label,
+            label,
+            label_x,
+            mid_y - font_label.get_height() // 2,
+            label_color,
+            shadow=False,
+        )
 
         if minutes:
-            times_str = "  ".join(f"{m}mn" for m in minutes)
+            times_str = "  ".join(f"{m}min" for m in minutes)
         else:
             times_str = "—"
-        times_surf = font_times.render(times_str, True, (255, 220, 80))
-        screen.blit(times_surf, (screen_w - times_surf.get_width() - padding_x, y + 2))
+        _blit_text_right(
+            screen,
+            font_times,
+            times_str,
+            right_x,
+            mid_y - font_times.get_height() // 2,
+            times_color,
+            shadow=False,
+        )
 
 
 def render(screen, outfit, current_weather, images_dir, config, transit_data=None):
     screen_w = config["screen_width"]
     screen_h = config["screen_height"]
-    reserved_bottom = transit_panel_reserved_height(config)
-    usable_h = max(120, screen_h - reserved_bottom)
+    usable_h = max(120, screen_h - transit_panel_reserved_height(config))
 
     bg_surf = None
     if config.get("use_weather_background", True):
@@ -479,7 +656,13 @@ def render(screen, outfit, current_weather, images_dir, config, transit_data=Non
         if bg_surf:
             # Sous les zones semi-transparentes du fond météo : couleur config, pas le buffer écran.
             screen.fill(background_color(config))
-            screen.blit(bg_surf, (0, 0))
+            alpha = weather_background_alpha_255(config)
+            if alpha < 255:
+                faded = bg_surf.copy()
+                faded.set_alpha(alpha)
+                screen.blit(faded, (0, 0))
+            else:
+                screen.blit(bg_surf, (0, 0))
         else:
             screen.fill(background_color(config))
     else:
@@ -562,7 +745,7 @@ def render(screen, outfit, current_weather, images_dir, config, transit_data=Non
             )
             draw_badge(screen, badge_text, badge_center)
 
-    draw_weather_text_block(
+    weather_layout = draw_weather_text_block(
         screen,
         config,
         current_weather,
@@ -576,7 +759,21 @@ def render(screen, outfit, current_weather, images_dir, config, transit_data=Non
         usable_screen_h=usable_h,
     )
 
-    draw_transit_panel(screen, transit_data, config)
+    if transit_module.transit_config_enabled(config):
+        margin_right = max(
+            16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
+        )
+        draw_transit_panel(
+            screen,
+            transit_data,
+            config,
+            column_left=weather_layout["column_left"],
+            start_y=weather_layout["bottom_y"] + TRANSIT_AFTER_WEATHER_GAP,
+            margin_right=margin_right,
+            bg_surf=bg_surf,
+        )
+
+    draw_time_pill(screen, screen_w)
 
     pygame.display.flip()
 

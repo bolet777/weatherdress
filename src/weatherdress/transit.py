@@ -9,7 +9,6 @@ import zipfile
 from datetime import date, datetime
 
 import requests
-from google.transit import gtfs_realtime_pb2
 
 from .paths import GTFS_CACHE_PATH
 
@@ -204,6 +203,16 @@ class TransitFetcher:
                     )
                 else:
                     print(f"[transit] Erreur bus HTTP {r.status_code}: {hint or r.reason}")
+                return {}
+
+            try:
+                from google.transit import gtfs_realtime_pb2
+            except ModuleNotFoundError:
+                print(
+                    "[transit] Paquet gtfs-realtime-bindings absent. "
+                    "Sur le Pi : pip3 install --break-system-packages gtfs-realtime-bindings "
+                    "ou bash scripts/install.sh"
+                )
                 return {}
 
             feed = gtfs_realtime_pb2.FeedMessage()

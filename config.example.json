@@ -5,6 +5,7 @@
   "units": "metric",
   "fullscreen": true,
   "use_weather_background": true,
+  "weather_background_alpha": 1.0,
   "character_colorkey": null,
   "layout": {
     "weather_mode": "after_character",
