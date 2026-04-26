@@ -7,6 +7,7 @@ from . import background_assets
 from . import character_assets
 from . import i18n
 from . import layout_config
+from . import transit as transit_module
 
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
@@ -19,6 +20,8 @@ FUTURE_ALPHA = 120  # transparence des accessoires futurs
 CIRCLE_BG_COLOR = (230, 230, 230)
 CIRCLE_RADIUS = 210
 CIRCLE_TOP_INSET = 14  # espace entre le bord haut de l’écran et le sommet du médaillon
+
+TRANSIT_PANEL_HEIGHT = 130  # bandeau bas (bus + métro) ; réserver la même hauteur au layout principal
 
 ACCESSORY_BADGE_OFFSET = {
     "umbrella": (0.2, 0.8),
@@ -282,6 +285,11 @@ def _font_size_clamped(layout, key_min, key_max, screen_h, fallback_frac):
     return mid
 
 
+def transit_panel_reserved_height(config):
+    """Pixels réservés en bas lorsque la section `transit` est activée dans config."""
+    return TRANSIT_PANEL_HEIGHT if transit_module.transit_config_enabled(config) else 0
+
+
 def draw_weather_text_block(
     surface,
     config,
@@ -293,6 +301,7 @@ def draw_weather_text_block(
     use_circle,
     char_rect,
     layout,
+    usable_screen_h=None,
 ):
     """Température + description : position selon layout (après personnage ou bord droit)."""
     deg = "°C" if config.get("units", "metric") == "metric" else "°F"
@@ -307,6 +316,7 @@ def draw_weather_text_block(
 
     color = _weather_block_text_color(config, use_photo_background, use_circle)
     use_shadow = use_photo_background
+    uh = usable_screen_h if usable_screen_h is not None else screen_h
 
     margin_right = max(
         16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
@@ -353,7 +363,7 @@ def draw_weather_text_block(
     total_h = temp_h + gap_td + desc_block_h + note_h
 
     if mode == "screen_right":
-        y = max(int(screen_h * 0.14), (screen_h - total_h) // 2)
+        y = max(int(uh * 0.14), (uh - total_h) // 2)
         y += _blit_text_right(
             surface, font_temp, temp_line, right_x, y, color, shadow=use_shadow
         )
@@ -374,8 +384,8 @@ def draw_weather_text_block(
     gap_px = int(layout["weather_gap_after_character_px"])
     left_x = char_rect.right + gap_px
     left_x = max(0, min(left_x, screen_w - 72))
-    y = int(float(layout["weather_top_pct"]) * screen_h)
-    y = max(4, min(y, screen_h - total_h - 8))
+    y = int(float(layout["weather_top_pct"]) * uh)
+    y = max(4, min(y, uh - total_h - 8))
 
     y += _blit_text_left(
         surface, font_temp, temp_line, left_x, y, color, shadow=use_shadow
@@ -394,9 +404,72 @@ def draw_weather_text_block(
         )
 
 
-def render(screen, outfit, current_weather, images_dir, config):
+def draw_transit_panel(screen, transit_data, config):
+    """
+    transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
+    """
+    if not transit_module.transit_config_enabled(config):
+        return
+    transit_data = transit_data or {"bus": {}, "metro": {}}
+    screen_w, screen_h = screen.get_size()
+    panel_y = screen_h - TRANSIT_PANEL_HEIGHT
+    transit_config = config.get("transit", {}) or {}
+    metro_color = tuple(
+        transit_config.get("metro_line_color", [0, 70, 168])[:3]
+    )
+    metro_directions = transit_config.get("metro_directions", {}) or {}
+
+    panel_surf = pygame.Surface((screen_w, TRANSIT_PANEL_HEIGHT), pygame.SRCALPHA)
+    panel_surf.fill((0, 0, 0, 180))
+    screen.blit(panel_surf, (0, panel_y))
+
+    font_label = pygame.font.SysFont("sans-serif", 17, bold=True)
+    font_times = pygame.font.SysFont("sans-serif", 17)
+
+    row_height = 28
+    padding_x = 14
+    padding_y = 6
+    max_rows = max(1, (TRANSIT_PANEL_HEIGHT - 2 * padding_y) // row_height)
+
+    rows = []
+    for sid, data in sorted(transit_data.get("bus", {}).items(), key=lambda x: x[0]):
+        label = f"Bus {data['route']} {data['label']}"
+        rows.append(("bus", label, data.get("minutes") or [], None))
+
+    for headsign, minutes in sorted(transit_data.get("metro", {}).items()):
+        display_name = metro_directions.get(headsign, headsign)
+        rows.append(("metro", display_name, minutes or [], metro_color))
+
+    rows = rows[:max_rows]
+
+    for i, (mode, label, minutes, color) in enumerate(rows):
+        y = panel_y + padding_y + i * row_height
+
+        icon_rect = pygame.Rect(padding_x, y + 2, 40, 22)
+        if mode == "bus":
+            pygame.draw.rect(screen, (60, 120, 200), icon_rect, border_radius=4)
+            icon_text = font_label.render("BUS", True, (255, 255, 255))
+        else:
+            pygame.draw.ellipse(screen, color, icon_rect)
+            icon_text = font_label.render("M", True, (255, 255, 255))
+        screen.blit(icon_text, icon_text.get_rect(center=icon_rect.center))
+
+        label_surf = font_label.render(label, True, (220, 220, 220))
+        screen.blit(label_surf, (padding_x + 48, y + 2))
+
+        if minutes:
+            times_str = "  ".join(f"{m}mn" for m in minutes)
+        else:
+            times_str = "—"
+        times_surf = font_times.render(times_str, True, (255, 220, 80))
+        screen.blit(times_surf, (screen_w - times_surf.get_width() - padding_x, y + 2))
+
+
+def render(screen, outfit, current_weather, images_dir, config, transit_data=None):
     screen_w = config["screen_width"]
     screen_h = config["screen_height"]
+    reserved_bottom = transit_panel_reserved_height(config)
+    usable_h = max(120, screen_h - reserved_bottom)
 
     bg_surf = None
     if config.get("use_weather_background", True):
@@ -417,8 +490,8 @@ def render(screen, outfit, current_weather, images_dir, config):
 
     # Médaillon : uniquement sans image météo plein écran (sinon personnage + texte sur le fond photo)
     if not use_photo_background:
-        top_inset = max(0, min(CIRCLE_TOP_INSET, screen_h - 1))
-        r_geom = (3 * (screen_h - top_inset) + 4) // 5  # ceil((3/5) * (screen_h - top_inset)) pour (5/3)r ≥ sh - top
+        top_inset = max(0, min(CIRCLE_TOP_INSET, usable_h - 1))
+        r_geom = (3 * (usable_h - top_inset) + 4) // 5  # ceil((3/5) * (usable_h - top_inset)) pour (5/3)r ≥ uh - top
         r = max(CIRCLE_RADIUS, r_geom)
         circle_cx = screen_w // 2
         circle_cy = top_inset + r
@@ -432,8 +505,8 @@ def render(screen, outfit, current_weather, images_dir, config):
 
     layout = layout_config.effective_layout(config)
     char_center_x = int(screen_w * float(layout["character_center_x_pct"]))
-    char_y = screen_h // 2 + int(layout["character_center_y_offset_px"])
-    char_max_h = int(screen_h * float(layout["character_max_height_pct"]))
+    char_y = usable_h // 2 + int(layout["character_center_y_offset_px"])
+    char_max_h = int(usable_h * float(layout["character_max_height_pct"]))
     char_max_w = int(screen_w * float(layout["character_max_width_pct"]))
 
     if char_img:
@@ -500,7 +573,10 @@ def render(screen, outfit, current_weather, images_dir, config):
         use_circle,
         char_rect,
         layout,
+        usable_screen_h=usable_h,
     )
+
+    draw_transit_panel(screen, transit_data, config)
 
     pygame.display.flip()
 

@@ -1,5 +1,6 @@
 import json
 import sys
+import threading
 import time
 
 import pygame
@@ -8,6 +9,7 @@ from . import display
 from . import i18n
 from . import identity_config
 from . import outfit
+from . import transit as transit_module
 from . import weather
 from .paths import CONFIG_PATH, IMAGES_DIR
 
@@ -45,6 +47,27 @@ def main():
     current_weather_data = None
     last_weather_error = None
 
+    transit_fetcher = None
+    transit_state = {"ready": False, "error": None}
+    transit_data = {"bus": {}, "metro": {}}
+    last_transit_refresh = 0.0
+    transit_refresh_secs = 30
+    if transit_module.transit_config_enabled(config):
+        transit_fetcher = transit_module.TransitFetcher(config)
+        transit_refresh_secs = int(
+            config.get("transit", {}).get("transit_refresh_seconds", 30)
+        )
+
+        def _init_transit():
+            try:
+                transit_fetcher.initialize()
+                transit_state["ready"] = True
+            except Exception as e:
+                transit_state["error"] = str(e)
+                print(f"[transit] Échec initialisation : {e}")
+
+        threading.Thread(target=_init_transit, daemon=True).start()
+
     clock = pygame.time.Clock()
 
     while True:
@@ -57,6 +80,17 @@ def main():
                 sys.exit()
 
         now = time.time()
+        if transit_fetcher and transit_state["ready"]:
+            transit_due = (last_transit_refresh == 0.0) or (
+                now - last_transit_refresh >= transit_refresh_secs
+            )
+            if transit_due:
+                transit_data = {
+                    "bus": transit_fetcher.get_bus_departures(),
+                    "metro": transit_fetcher.get_metro_departures(),
+                }
+                last_transit_refresh = now
+
         if now - last_refresh >= refresh_interval:
             try:
                 lang = i18n.effective_language(config)
@@ -94,6 +128,9 @@ def main():
                 current_weather_data,
                 IMAGES_DIR,
                 config,
+                transit_data=transit_data
+                if transit_module.transit_config_enabled(config)
+                else None,
             )
         elif last_weather_error:
             display.render_status(

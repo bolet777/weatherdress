@@ -22,5 +22,21 @@
   "forecast_hours": 8,
   "forecast_step_hours": 3,
   "identity_on_each_refresh": false,
-  "character_variant_max": 6
+  "character_variant_max": 6,
+  "transit": {
+    "stm_api_key": "VOTRE_CLE_API_STM_ICI",
+    "gtfs_url": "https://www.stm.info/sites/default/files/gtfs/gtfs_stm.zip",
+    "bus_stops": {
+      "56220": "Snowdon",
+      "56221": "St-Michel"
+    },
+    "metro_station": "Outremont",
+    "metro_route_id": "5",
+    "metro_line_color": [0, 70, 168],
+    "metro_directions": {
+      "Snowdon": "Snowdon",
+      "Saint-Michel": "St-Michel"
+    },
+    "transit_refresh_seconds": 30
+  }
 }

@@ -189,6 +189,7 @@ make test
 | `forecast_step_hours` | Granularité des tranches (3h sur l'API gratuite) |
 | `identity_on_each_refresh` | `true` / `false` : nouveau couple genre / variante à chaque fetch météo ou identité fixe. **Si la clé est absente** et `refresh_minutes` ≤ 1, la rotation est **activée** (pratique pour les tests) ; sinon identité fixe au démarrage (comportement Pi). |
 | `character_variant_max` | Borne supérieure du numéro tiré au hasard (1…N, défaut **6**) |
+| `transit` | Optionnel : bandeau bas STM (bus temps réel + métro au prochain horaire GTFS). Requiert au minimum `gtfs_url` et `metro_station`. Clés utiles : `stm_api_key` (Open Data STM, pour le flux tripUpdates bus), `bus_stops` (`stop_id` → libellé), `metro_route_id`, `metro_directions` (libellés : clés = `trip_headsign` exact du GTFS), `transit_refresh_seconds`. Le GTFS est mis en cache sous `cache/gtfs_stm.zip`. |
 
 ---
 

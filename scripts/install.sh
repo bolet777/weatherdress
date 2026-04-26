@@ -47,6 +47,12 @@ if is_raspberry_pi; then
   export DEBIAN_FRONTEND=noninteractive
   sudo apt-get update -qq
   sudo apt-get install -y --no-install-recommends python3-pygame python3-requests
+  echo "==> gtfs-realtime-bindings (pip, API temps réel bus STM)..."
+  gtfs_pip_args=(gtfs-realtime-bindings)
+  if externally_managed_env; then
+    gtfs_pip_args=(--break-system-packages "${gtfs_pip_args[@]}")
+  fi
+  pip3 install "${gtfs_pip_args[@]}"
 else
   echo "==> Installation des dépendances (pip)..."
   pip_args=(-r requirements.txt)

@@ -7,3 +7,4 @@ REPO_ROOT = _PKG_DIR.parents[1]
 CONFIG_PATH = REPO_ROOT / "config.json"
 IMAGES_DIR = str(REPO_ROOT / "images")
 LOCALES_DIR = REPO_ROOT / "locale"
+GTFS_CACHE_PATH = REPO_ROOT / "cache" / "gtfs_stm.zip"
