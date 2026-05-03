@@ -30,8 +30,8 @@ def _minimal_config():
     }
 
 
-def test_render_future_accessory_runs_badge_offset_lookup(tmp_path, monkeypatch):
-    """Exerce accessoires futurs + pastille (outfit_module.accessory_badge_offset)."""
+def test_render_future_accessories_column_runs_without_crash(tmp_path, monkeypatch):
+    """Exerce accessoires futurs (colonne + pastilles heure)."""
     monkeypatch.setattr(pygame.display, "flip", lambda: None)
 
     surf = pygame.Surface((32, 32), pygame.SRCALPHA)
@@ -46,6 +46,44 @@ def test_render_future_accessory_runs_badge_offset_lookup(tmp_path, monkeypatch)
     outfit_data = {
         "character": "normal_woman1",
         "current_accessories": [],
+        "future_accessories": [
+            {"accessory": "umbrella", "hour": 15, "hours_from_now": 2},
+        ],
+    }
+    weather = {
+        "temp": 18.0,
+        "description": "Test",
+        "condition_id": 801,
+        "icon": "02d",
+    }
+
+    display.render(
+        screen,
+        outfit_data,
+        weather,
+        str(tmp_path),
+        cfg,
+        transit_data=None,
+        transit_phase_t=0.0,
+    )
+
+
+def test_render_accessories_column_includes_current_chips(tmp_path, monkeypatch):
+    """Accessoires actuels passent par la colonne (plus de blit plein personnage)."""
+    monkeypatch.setattr(pygame.display, "flip", lambda: None)
+
+    surf = pygame.Surface((32, 32), pygame.SRCALPHA)
+
+    def fake_load_image(_path):
+        return surf.copy()
+
+    monkeypatch.setattr(display, "load_image", fake_load_image)
+
+    screen = pygame.Surface((800, 480))
+    cfg = _minimal_config()
+    outfit_data = {
+        "character": "normal_woman1",
+        "current_accessories": ["cap"],
         "future_accessories": [
             {"accessory": "umbrella", "hour": 15, "hours_from_now": 2},
         ],

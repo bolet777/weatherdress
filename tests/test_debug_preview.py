@@ -21,3 +21,24 @@ def test_debug_preview_next_frame_no_crash():
 def test_debug_preview_has_scenario_forecast_umbrella():
     labels = [s["label"] for s in SCENARIOS]
     assert any("Forecast" in L and "umbrella" in L for L in labels)
+
+
+def test_debug_preview_each_scenario_forecast_has_distinct_hours_from_now():
+    """Sinon un mauvais ordre des pastilles futur n’apparaîtrait pas aux tests."""
+    for scen in SCENARIOS:
+        fc = scen.get("forecast") or []
+        hours = [x.get("hours_from_now") for x in fc]
+        assert len(set(hours)) >= 2, (scen.get("label"), hours)
+
+
+def test_debug_preview_each_scenario_has_at_least_two_future_accessories():
+    from weatherdress.outfit import get_outfit_with_identity
+
+    for scen in SCENARIOS:
+        o = get_outfit_with_identity(
+            scen["weather"],
+            scen.get("forecast") or [],
+            "woman",
+            1,
+        )
+        assert len(o["future_accessories"]) >= 2, scen.get("label")

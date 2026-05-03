@@ -7,9 +7,9 @@ import pygame
 from . import ambient_background
 from . import background_assets
 from . import character_assets
-from . import i18n
+from .badges import BADGE_AA_SCALE
+from . import future_accessories_column
 from . import layout_config
-from . import outfit as outfit_module
 from . import transit as transit_module
 from . import weather_icons
 from .paths import IMAGES_DIR
@@ -18,10 +18,6 @@ from .paths import IMAGES_DIR
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
 TEXT_ON_LIGHT_BG = (40, 40, 40)
 TEXT_ON_DARK_BG = (245, 245, 245)
-BADGE_BG_COLOR = (220, 50, 50)
-BADGE_TEXT_COLOR = (255, 255, 255)
-BADGE_AA_SCALE = 3  # sur-échantillonnage du cercle puis lissage (anti-crénelage)
-FUTURE_ALPHA = 120  # transparence des accessoires futurs
 CIRCLE_BG_COLOR = (230, 230, 230)
 CIRCLE_RADIUS = 210
 CIRCLE_TOP_INSET = 14  # espace entre le bord haut de l’écran et le sommet du médaillon
@@ -179,26 +175,6 @@ def _get_scaled_background_surface(images_dir, current_weather, screen_w, screen
     return surf
 
 
-def draw_badge(surface, text, center):
-    """Dessine une pastille ronde avec le texte centré."""
-    font = pygame.font.SysFont("sans-serif", 14, bold=True)
-    text_surf = font.render(text, True, BADGE_TEXT_COLOR)
-    padding = 6
-    radius = max(text_surf.get_width(), text_surf.get_height()) // 2 + padding
-
-    scale = BADGE_AA_SCALE
-    hi = pygame.Surface((radius * 2 * scale, radius * 2 * scale), pygame.SRCALPHA)
-    c = radius * scale
-    pygame.draw.circle(hi, BADGE_BG_COLOR, (c, c), radius * scale)
-    badge_surf = pygame.transform.smoothscale(hi, (radius * 2, radius * 2))
-
-    badge_surf.blit(
-        text_surf,
-        (radius - text_surf.get_width() // 2, radius - text_surf.get_height() // 2),
-    )
-    surface.blit(badge_surf, (center[0] - radius, center[1] - radius))
-
-
 def draw_aa_filled_circle(surface, center, radius, color):
     """Cercle plein aux bords lissés : dessin haute résolution puis smoothscale (comme draw_badge)."""
     if radius <= 0:
@@ -247,16 +223,6 @@ def blit_centered_text_pill(
     pygame.draw.rect(pill, bg_rgba, pill.get_rect(), border_radius=border_radius)
     pill.blit(text_surf, (pw, ph))
     surface.blit(pill, pill.get_rect(center=center_xy))
-
-
-def _weather_forecast_line(future_note):
-    """Extrait le texte des parenthèses pour une ligne sous la description (ex. prévisions)."""
-    s = (future_note or "").strip()
-    if not s:
-        return ""
-    if s.startswith("(") and s.endswith(")"):
-        return s[1:-1].strip()
-    return s
 
 
 def _weather_block_text_color(config, use_photo_background, use_circle):
@@ -462,9 +428,6 @@ def draw_weather_text_block(
     if desc:
         desc = desc[0].upper() + desc[1:] if len(desc) > 1 else desc.upper()
 
-    future_note = i18n.format_weather_future_note(config, outfit["future_accessories"])
-    forecast_line = _weather_forecast_line(future_note)
-
     color = _weather_block_text_color(config, use_photo_background, use_circle)
     use_shadow = use_photo_background
     uh = usable_screen_h if usable_screen_h is not None else screen_h
@@ -480,13 +443,9 @@ def draw_weather_text_block(
     desc_size = _font_size_clamped(
         layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.065
     )
-    note_size = _font_size_clamped(
-        layout, "weather_note_font_min", "weather_note_font_max", screen_h, 0.048
-    )
 
     font_temp = pygame.font.SysFont("sans-serif", temp_size, bold=True)
     font_desc = pygame.font.SysFont("sans-serif", desc_size, bold=False)
-    font_note = pygame.font.SysFont("sans-serif", note_size, bold=False)
 
     icon_path = weather_icons.get_weather_icon_path(
         IMAGES_DIR,
@@ -520,8 +479,7 @@ def draw_weather_text_block(
         desc_block_h = len(desc_lines) * dh + max(0, len(desc_lines) - 1) * line_gap
     else:
         desc_block_h = 0
-    note_h = (4 + font_note.get_height()) if forecast_line else 0
-    total_h = temp_h + gap_td + desc_block_h + note_h
+    total_h = temp_h + gap_td + desc_block_h
     v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
 
     if mode == "screen_right":
@@ -532,8 +490,6 @@ def draw_weather_text_block(
         max_w = temp_text_w + icon_extra
         for ln in desc_lines:
             max_w = max(max_w, font_desc.size(ln)[0])
-        if forecast_line:
-            max_w = max(max_w, font_note.size(forecast_line)[0])
         column_left = right_x - max_w
 
         y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
@@ -556,11 +512,6 @@ def draw_weather_text_block(
             )
             if i < len(desc_lines) - 1:
                 y += line_gap
-        if forecast_line:
-            y += 4
-            y += _blit_text_right(
-                surface, font_note, forecast_line, right_x, y, color, shadow=use_shadow
-            )
         return {"column_left": column_left, "bottom_y": y}
 
     gap_px = int(layout["weather_gap_after_character_px"])
@@ -587,11 +538,6 @@ def draw_weather_text_block(
         )
         if i < len(desc_lines) - 1:
             y += line_gap
-    if forecast_line:
-        y += 4
-        y += _blit_text_left(
-            surface, font_note, forecast_line, left_x, y, color, shadow=use_shadow
-        )
     return {"column_left": left_x, "bottom_y": y}
 
 
@@ -1067,32 +1013,14 @@ def render(
             label = font.render(outfit["character"], True, primary_text_color(config))
             screen.blit(label, label.get_rect(center=char_rect.center))
 
-    acc_dir = os.path.join(images_dir, "accessories")
-
-    # Accessoires actuels — normaux
-    for acc_name in outfit["current_accessories"]:
-        acc_img = load_image(os.path.join(acc_dir, f"{acc_name}.png"))
-        if acc_img:
-            acc_img = fit_image(acc_img, char_rect.width, char_rect.height)
-            acc_img = apply_character_colorkey(acc_img, config)
-            screen.blit(acc_img, char_rect)
-
-    # Accessoires futurs — semi-transparents + pastille
-    for item in outfit["future_accessories"]:
-        acc_img = load_image(os.path.join(acc_dir, f"{item['accessory']}.png"))
-        if acc_img:
-            acc_img = fit_image(acc_img, char_rect.width, char_rect.height)
-            acc_img = apply_character_colorkey(acc_img, config)
-            ghost = acc_img.copy()
-            ghost.set_alpha(FUTURE_ALPHA)
-            screen.blit(ghost, char_rect)
-            badge_text = f"{item['hour']}H"
-            offset = outfit_module.accessory_badge_offset(item["accessory"])
-            badge_center = (
-                char_rect.left + int(char_rect.width * offset[0]),
-                char_rect.top + int(char_rect.height * offset[1]),
-            )
-            draw_badge(screen, badge_text, badge_center)
+    future_accessories_column.draw_future_accessories_column(
+        screen,
+        outfit["current_accessories"],
+        outfit["future_accessories"],
+        char_rect,
+        images_dir,
+        config,
+    )
 
     if transit_module.transit_config_enabled(config):
         draw_transit_panel(
