@@ -250,6 +250,7 @@ def get_outfit_with_identity(current_weather, forecast_slices, gender, number):
                 )
                 seen.add(acc)
 
+    future_acc.sort(key=lambda a: float(a.get("hours_from_now") or 0))
     return {
         "character": character,
         "current_accessories": current_acc,
