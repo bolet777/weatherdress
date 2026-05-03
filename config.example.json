@@ -38,6 +38,7 @@
       "Snowdon": "Snowdon",
       "Saint-Michel": "St-Michel"
     },
-    "transit_refresh_seconds": 30
+    "transit_refresh_seconds": 30,
+    "transit_alternate_seconds": 5
   }
 }

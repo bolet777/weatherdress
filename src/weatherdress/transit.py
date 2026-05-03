@@ -154,7 +154,7 @@ class TransitFetcher:
         return active
 
     def get_metro_departures(self) -> dict[str, list[int]]:
-        """{trip_headsign: [minutes, ...]} — jusqu’à 3 prochains départs par direction."""
+        """{trip_headsign: [minutes, ...]} — jusqu’à 2 prochains départs par direction."""
         if not self._metro_index or not self._metro_trips:
             return {}
         try:
@@ -175,7 +175,7 @@ class TransitFetcher:
             result: dict[str, list[int]] = {}
             for headsign, times in by_headsign.items():
                 times.sort()
-                result[headsign] = [(t - now_secs) // 60 for t in times[:3]]
+                result[headsign] = [(t - now_secs) // 60 for t in times[:2]]
             return result
         except Exception as e:
             print(f"[transit] Erreur métro : {e}")
@@ -243,7 +243,7 @@ class TransitFetcher:
 
             for sid in result:
                 result[sid]["minutes"].sort()
-                result[sid]["minutes"] = result[sid]["minutes"][:3]
+                result[sid]["minutes"] = result[sid]["minutes"][:2]
 
             return result
         except Exception as e:

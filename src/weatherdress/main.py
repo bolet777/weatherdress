@@ -131,6 +131,7 @@ def main():
                 transit_data=transit_data
                 if transit_module.transit_config_enabled(config)
                 else None,
+                transit_phase_t=now,
             )
         elif last_weather_error:
             display.render_status(
