@@ -1,4 +1,6 @@
+import ctypes
 import json
+import os
 import sys
 import threading
 import time
@@ -25,8 +27,73 @@ def load_config():
         return json.load(f)
 
 
+def _prepare_app_desktop_name(config):
+    """
+    Titre affiché dans barre des tâches / listes de fenêtres (souvent « python3 » sinon).
+    À appeler avant pygame.init(). Sous macOS, le dock peut garder « Python » si lancement
+    via python3 -m (il faudrait un bundle .app pour le nom du bundle).
+    """
+    title = (i18n.t(config, "window_title") or "WeatherDress").strip() or "WeatherDress"
+    if len(title) > 256:
+        title = title[:256]
+
+    os.environ.setdefault("SDL_VIDEO_X11_WMCLASS", title)
+
+    app_id = "".join(c if c.isalnum() else "-" for c in title.lower())
+    app_id = "-".join(p for p in app_id.split("-") if p) or "weatherdress"
+    os.environ.setdefault("SDL_VIDEO_WAYLAND_APP_ID", app_id)
+
+    if sys.platform.startswith("linux"):
+        try:
+            libc = ctypes.CDLL(None)
+            short = title.encode("utf-8")[:15]
+            if short:
+                libc.prctl(15, short, 0, 0, 0)
+        except Exception:
+            pass
+
+    if sys.platform == "darwin":
+        try:
+            lib = ctypes.CDLL("/usr/lib/libSystem.B.dylib")
+            pthread_setname_np = lib.pthread_setname_np
+            pthread_setname_np.argtypes = [ctypes.c_char_p]
+            pthread_setname_np.restype = ctypes.c_int
+            short = title.encode("utf-8")[:63]
+            if short:
+                pthread_setname_np(short)
+        except Exception:
+            pass
+
+    if sys.platform == "win32":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "WeatherDress.WeatherDress.1.0"
+            )
+        except Exception:
+            pass
+
+
+def _set_window_icon(max_side=128):
+    """Icône de la fenêtre / barre des tâches (dock) : images/icons/app.png."""
+    path = os.path.join(IMAGES_DIR, "icons", "app.png")
+    if not os.path.isfile(path):
+        return
+    try:
+        icon = pygame.image.load(path).convert_alpha()
+        iw, ih = icon.get_size()
+        if iw > max_side or ih > max_side:
+            s = min(max_side / iw, max_side / ih)
+            icon = pygame.transform.smoothscale(
+                icon, (max(1, int(iw * s)), max(1, int(ih * s)))
+            )
+        pygame.display.set_icon(icon)
+    except pygame.error as e:
+        print(f"[app] Icône fenêtre non chargée ({path}) : {e}")
+
+
 def main():
     config = load_config()
+    _prepare_app_desktop_name(config)
 
     pygame.init()
     fullscreen = config.get("fullscreen", True)
@@ -37,6 +104,7 @@ def main():
         (config["screen_width"], config["screen_height"]), flags
     )
     pygame.display.set_caption(i18n.t(config, "window_title"))
+    _set_window_icon()
 
     rotate_identity = identity_config.identity_on_each_refresh(config)
     gender, number = outfit.pick_identity(config)
