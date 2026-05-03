@@ -36,6 +36,7 @@ _COLUMN_BADGE_DIR_XY = math.sqrt(0.5)  # cos(π/4), sin(π/4) — unitaire écra
 # Colonne : espace entre le bord droit du disque et char_rect.left ; marge écran à gauche.
 COLUMN_TO_CHARACTER_GAP_PX = 10
 COLUMN_SCREEN_LEFT_MARGIN_PX = 8
+COLUMN_SCREEN_TOP_MARGIN_PX = 8
 
 
 def _disk_canvas_half_extent(outer_r: int, ring_w: int) -> Tuple[int, int]:
@@ -315,7 +316,8 @@ def draw_future_accessories_column(
 ):
     """
     Colonne à gauche du personnage : puces pour accessoires actuels (anneau
-    blanc 100 %, sans heure) puis futurs (urgence + pastille).
+    blanc 100 %, sans heure) puis futurs (urgence + pastille). Le bas du dernier
+    disque est aligné sur ``char_rect.bottom`` (bas du sprite).
     """
     slots = _build_slots(
         current_accessory_ids,
@@ -339,11 +341,13 @@ def draw_future_accessories_column(
 
     n = len(slots)
     cell_h = outer_r * 2 + gap_y
-    total_h = n * cell_h - gap_y
     _, disk_half = _disk_canvas_half_extent(outer_r, ring_w)
     ideal_cx = char_rect.left - COLUMN_TO_CHARACTER_GAP_PX - disk_half
     col_cx = max(COLUMN_SCREEN_LEFT_MARGIN_PX + disk_half, ideal_cx)
-    y0 = char_rect.centery - total_h // 2
+    y0 = max(
+        COLUMN_SCREEN_TOP_MARGIN_PX + disk_half - outer_r,
+        char_rect.bottom - disk_half - outer_r - (n - 1) * cell_h,
+    )
 
     acc_dir = os.path.join(images_dir, "accessories")
     plate_rgba = (50, 54, 62, 210)
