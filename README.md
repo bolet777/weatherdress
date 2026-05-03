@@ -103,8 +103,11 @@ Exemples : `cold_woman1.png`, `normal_man1.png`, `snow_woman1.png`
 | Fichier          | Déclencheur                              |
 |------------------|------------------------------------------|
 | `umbrella.png`   | Pluie prévue                             |
-| `sunglasses.png` | Peu nuageux + entre 7h et 17h            |
-| `hat.png`        | Grand soleil (9h–16h) ou ≥ 28°C         |
+| `sun_screen.png` | Ciel clair (`clouds` < 20) de jour (lever/coucher ou heure 6–20) |
+| `sunglasses.png` | De jour et (peu nuageux `clouds` < 30 ou chaleur `temp` ≥ 28°C) |
+| `beanie.png`     | Neige (`snow` > 0) ou froid (`temp` < 7°C) |
+| `hat.png`        | Ciel clair (`clouds` < 20) 7h–17h ou forte chaleur (`temp` ≥ 28°C) |
+| `cap.png`        | Journée 9h–17h, un peu nuageux (`clouds` 20–29) et `temp` < 28°C |
 | `boots.png`      | Neige : `snow` > 0                       |
 | `rain_boots.png` | Pluie : `rain` > 3, sans neige         |
 | `crampons.png`   | Glace : code OWM **511** (pluie verglaçante, même si `snow` > 0) ; ou sans neige et `rain` > 0 et `temp` ≤ 2°C |

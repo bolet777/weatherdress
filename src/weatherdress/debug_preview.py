@@ -49,7 +49,7 @@ SCENARIOS: List[Dict[str, Any]] = [
         "forecast": [],
     },
     {
-        "label": "Snow + freezing (boots, scarf)",
+        "label": "Snow + freezing (beanie, boots, scarf)",
         "weather": _w(
             temp=-7,
             snow=1.5,
@@ -78,7 +78,7 @@ SCENARIOS: List[Dict[str, Any]] = [
         "forecast": [],
     },
     {
-        "label": "Full sun midday — hot (sun_screen, cap)",
+        "label": "Full sun midday — hot (sun_screen, hat)",
         "weather": _w(
             temp=26,
             clouds=10,
@@ -130,7 +130,7 @@ SCENARIOS: List[Dict[str, Any]] = [
         "forecast": [],
     },
     {
-        "label": "Extreme cold (verycold → cold sprite)",
+        "label": "Extreme cold — beanie (verycold → cold sprite)",
         "weather": _w(
             temp=-16,
             clouds=45,
@@ -143,7 +143,7 @@ SCENARIOS: List[Dict[str, Any]] = [
         "forecast": [],
     },
     {
-        "label": "Extreme heat (veryhot)",
+        "label": "Extreme heat (veryhot, sun_screen, hat)",
         "weather": _w(
             temp=36,
             clouds=6,

@@ -1,4 +1,5 @@
 import math
+import time
 import requests
 from datetime import datetime, timezone
 
@@ -36,6 +37,7 @@ def get_current_weather(api_key, city, units="metric", lang=None):
         "snow": data.get("snow", {}).get("1h", 0),
         "clouds": data["clouds"]["all"],  # pourcentage
         "hour": datetime.now().hour,
+        "now_ts": int(time.time()),
     }
     if isinstance(sunrise, int):
         out["sunrise"] = sunrise

@@ -15,6 +15,32 @@ def _condition_id_int(w):
         return None
 
 
+def _is_reasonable_daylight(w):
+    """
+    Jour pour accessoires « soleil » : sunrise/sunset + now_ts si dispo (API current),
+    sinon repli heure locale 6–20 (prévisions / dicts sans now_ts).
+    """
+    now_ts = w.get("now_ts")
+    sr, ss = w.get("sunrise"), w.get("sunset")
+    if (
+        now_ts is not None
+        and isinstance(sr, int)
+        and isinstance(ss, int)
+        and ss > sr
+    ):
+        try:
+            ts = float(now_ts)
+        except (TypeError, ValueError):
+            pass
+        else:
+            return sr <= ts <= ss
+    try:
+        h = int(w.get("hour", 12))
+    except (TypeError, ValueError):
+        h = 12
+    return 6 <= h <= 20
+
+
 ACCESSORY_RULES = [
     {
         "id": "umbrella",
@@ -23,29 +49,39 @@ ACCESSORY_RULES = [
     },
     {
         "id": "sun_screen",
-        "slot": "sun",
-        "predicate": lambda w: w["clouds"] < 20 and 9 <= w["hour"] <= 17,
+        "predicate": lambda w: w["clouds"] < 20 and _is_reasonable_daylight(w),
         "badge_offset": (0.42, 0.12),
     },
     {
         "id": "sunglasses",
         "slot": "sun",
-        "predicate": lambda w: w["clouds"] < 30 and 7 <= w["hour"] <= 17,
+        "predicate": lambda w: _is_reasonable_daylight(w)
+        and (w["clouds"] < 30 or w["temp"] >= 28),
         "badge_offset": (0.5, 0.1),
     },
     {
-        "id": "cap",
+        "id": "beanie",
         "slot": "head",
-        "predicate": lambda w: w["clouds"] < 30 and 9 <= w["hour"] <= 17,
-        "badge_offset": (0.48, 0.07),
+        "predicate": lambda w: w["snow"] > 0 or w["temp"] < 7,
+        "badge_offset": (0.48, 0.06),
     },
     {
         "id": "hat",
         "slot": "head",
         "predicate": lambda w: (
-            (w["clouds"] < 20 and 9 <= w["hour"] <= 16) or w["temp"] >= 28
+            (w["clouds"] < 20 and 7 <= w["hour"] <= 17) or w["temp"] >= 28
         ),
         "badge_offset": (0.5, 0.05),
+    },
+    {
+        "id": "cap",
+        "slot": "head",
+        "predicate": lambda w: (
+            w["clouds"] < 30
+            and 9 <= w["hour"] <= 17
+            and w["temp"] < 28
+        ),
+        "badge_offset": (0.48, 0.07),
     },
     {
         "id": "boots",
@@ -126,7 +162,7 @@ def active_accessories(weather):
     """
     Retourne la liste des accessoires actifs pour une tranche météo donnée.
     `weather` est un dict avec temp, rain, snow, wind_kmh, clouds, hour
-    et optionnellement condition_id (OpenWeather).
+    et optionnellement condition_id (OpenWeather), now_ts, sunrise, sunset.
     Règles avec le même `slot` : seule la première qui matche dans ACCESSORY_RULES est gardée.
     """
     out = []

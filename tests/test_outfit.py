@@ -36,9 +36,97 @@ def test_accessories_rain():
 
 
 def test_accessories_sunglasses():
-    # clouds 25: sunglasses (partly cloudy) but not sun_screen (needs clouds < 20)
     w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 25, "hour": 12, "temp": 22}
     assert "sunglasses" in active_accessories(w)
+
+
+def test_accessories_sunglasses_clear_sky_alongside_sun_screen():
+    """sun_screen n'a plus de slot : lunettes + écran solaire si ciel clair le jour."""
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 10,
+        "hour": 12,
+        "temp": 24,
+    }
+    acc = active_accessories(w)
+    assert "sunglasses" in acc
+    assert "sun_screen" in acc
+
+
+def test_accessories_sunglasses_heatwave_high_clouds():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 8,
+        "clouds": 95,
+        "hour": 15,
+        "temp": 34,
+    }
+    assert "sunglasses" in active_accessories(w)
+
+
+def test_accessories_sunglasses_not_at_night_by_hour():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 15,
+        "hour": 22,
+        "temp": 22,
+    }
+    assert "sunglasses" not in active_accessories(w)
+
+
+def test_accessories_sunglasses_not_at_night_by_sun_times():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 10,
+        "hour": 12,
+        "temp": 25,
+        "sunrise": 1_000_000,
+        "sunset": 1_000_100,
+        "now_ts": 1_000_200,
+    }
+    assert "sunglasses" not in active_accessories(w)
+
+
+def test_accessories_beanie_snow():
+    w = {"rain": 0, "snow": 1, "wind_kmh": 8, "clouds": 90, "hour": 11, "temp": -2}
+    assert "beanie" in active_accessories(w)
+
+
+def test_accessories_beanie_frigid_no_snow():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 10, "clouds": 50, "hour": 12, "temp": 4}
+    acc = active_accessories(w)
+    assert "beanie" in acc
+    assert "cap" not in acc
+
+
+def test_accessories_cap_mild_sunny_not_hot():
+    # Nuages 20–29 : casquette, pas chapeau soleil (nuages ≥ 20)
+    w = {"rain": 0, "snow": 0, "wind_kmh": 6, "clouds": 25, "hour": 12, "temp": 22}
+    acc = active_accessories(w)
+    assert "cap" in acc
+    assert "hat" not in acc
+    assert "beanie" not in acc
+
+
+def test_accessories_hat_hot_beats_cap():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 4, "clouds": 8, "hour": 14, "temp": 33}
+    acc = active_accessories(w)
+    assert "hat" in acc
+    assert "cap" not in acc
+
+
+def test_accessories_hat_clear_daytime():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 15, "hour": 10, "temp": 18}
+    acc = active_accessories(w)
+    assert "hat" in acc
+    assert "beanie" not in acc
 
 
 def test_accessories_scarf_cold():
