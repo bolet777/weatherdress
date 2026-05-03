@@ -20,6 +20,8 @@ DEFAULT_LAYOUT = {
     "weather_gap_after_character_px": 12,
     # Hauteur du 1er texte météo : fraction écran depuis le haut (0–1)
     "weather_top_pct": 0.07,
+    # Décalage vertical du bloc météo et des cartes transport en dessous (négatif = remonter)
+    "weather_transit_vertical_offset_px": -28,
     # Tailles de police (min / max en px, bornées par l’écran)
     "weather_temp_font_min": 52,
     "weather_temp_font_max": 102,

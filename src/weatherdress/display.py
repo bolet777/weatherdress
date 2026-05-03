@@ -324,11 +324,19 @@ def _font_size_clamped(layout, key_min, key_max, screen_h, fallback_frac):
 _weather_icon_source_cache = {}
 _weather_icon_scaled_cache = {}
 
+# Hauteur icône / hauteur du texte température (>1 = icône un peu au-dessus de la ligne)
+WEATHER_ICON_HEIGHT_FACTOR = 1.5
+# Dessin HR puis réduction pour limiter crénelures (cf. TIME_PILL_AA_SCALE)
+WEATHER_ICON_AA_SCALE = 3
+
 
 def _weather_icon_scaled_to_height(icon_path, height_px):
-    """Adapte la hauteur du PNG à `height_px` (largeur proportionnelle), avec cache."""
+    """
+    Adapte la hauteur du PNG à `height_px` (largeur proportionnelle).
+    Réduction en deux passes smoothscale pour adoucir les bords.
+    """
     h = max(1, int(round(height_px)))
-    key = (icon_path, h)
+    key = (icon_path, h, WEATHER_ICON_AA_SCALE)
     if key in _weather_icon_scaled_cache:
         return _weather_icon_scaled_cache[key]
     if icon_path not in _weather_icon_source_cache:
@@ -336,23 +344,32 @@ def _weather_icon_scaled_to_height(icon_path, height_px):
             icon_path
         ).convert_alpha()
     raw = _weather_icon_source_cache[icon_path]
-    iw, ih = raw.get_size()
-    if ih <= 0:
+    iw, ih_nat = raw.get_size()
+    if ih_nat <= 0:
         nh = h
         nw = h
     else:
         nh = h
-        nw = max(1, int(round(iw * nh / ih)))
-    surf = pygame.transform.smoothscale(raw, (nw, nh))
+        nw = max(1, int(round(iw * nh / ih_nat)))
+    aa = max(1, int(WEATHER_ICON_AA_SCALE))
+    if aa <= 1:
+        surf = pygame.transform.smoothscale(raw, (nw, nh))
+    else:
+        nh_hi = nh * aa
+        nw_hi = max(1, int(round(iw * nh_hi / ih_nat)))
+        hi_surf = pygame.transform.smoothscale(raw, (nw_hi, nh_hi))
+        surf = pygame.transform.smoothscale(hi_surf, (nw, nh))
     _weather_icon_scaled_cache[key] = surf
     return surf
 
 
-def _weather_icon_row_width(icon_path, text_height_px):
+def _weather_icon_row_width(icon_path, base_text_height_px, icon_scale_h):
+    """`icon_scale_h` = hauteur cible après facteur WEATHER_ICON_HEIGHT_FACTOR."""
     if not icon_path:
         return 0
-    gap = max(4, int(round(text_height_px * 0.12)))
-    return gap + _weather_icon_scaled_to_height(icon_path, text_height_px).get_width()
+    mh = base_text_height_px
+    gap = max(5, int(round(mh * 0.14)))
+    return gap + _weather_icon_scaled_to_height(icon_path, icon_scale_h).get_width()
 
 
 def _blit_temperature_with_icon(
@@ -370,21 +387,23 @@ def _blit_temperature_with_icon(
     Température + icône sur une ligne, icône à droite du texte.
     anchor 'left' : coord = bord gauche du texte.
     anchor 'right' : coord = bord droit de l’icône (alignement global à droite).
-    Retourne la hauteur de ligne (hauteur du rendu texte).
+    Retourne la hauteur de ligne utilisée sous le bloc (texte ± débord vertical de l’icône).
     """
     txt = font.render(temp_line, True, color)
     sh_surf = font.render(temp_line, True, (30, 30, 35)) if shadow else None
     mh = txt.get_height()
+    icon_scale_h = max(1, int(round(mh * WEATHER_ICON_HEIGHT_FACTOR)))
     icon_surf = None
     if icon_path:
         try:
-            icon_surf = _weather_icon_scaled_to_height(icon_path, mh)
+            icon_surf = _weather_icon_scaled_to_height(icon_path, icon_scale_h)
         except pygame.error:
             icon_surf = None
-    gap = max(4, int(round(mh * 0.12))) if icon_surf else 0
+    gap = max(5, int(round(mh * 0.14))) if icon_surf else 0
     tw = txt.get_width()
     iw = icon_surf.get_width() if icon_surf else 0
 
+    row_h = mh
     if anchor == "left":
         tx = coord
         if shadow and sh_surf is not None:
@@ -398,9 +417,10 @@ def _blit_temperature_with_icon(
         rt.top = top_y
         surface.blit(txt, rt)
         if icon_surf is not None:
-            iy = top_y + max(0, (mh - icon_surf.get_height()) // 2)
+            iy = top_y + (mh - icon_surf.get_height()) // 2
             surface.blit(icon_surf, (tx + tw + gap, iy))
-        return mh
+            row_h = max(row_h, ((mh - icon_surf.get_height()) // 2) + icon_surf.get_height())
+        return row_h
 
     # anchor == "right": bord droit de l’icône à `coord`
     text_right_edge = coord - iw - gap
@@ -415,9 +435,10 @@ def _blit_temperature_with_icon(
     rt.top = top_y
     surface.blit(txt, rt)
     if icon_surf is not None:
-        iy = top_y + max(0, (mh - icon_surf.get_height()) // 2)
+        iy = top_y + (mh - icon_surf.get_height()) // 2
         surface.blit(icon_surf, (coord - iw, iy))
-    return mh
+        row_h = max(row_h, ((mh - icon_surf.get_height()) // 2) + icon_surf.get_height())
+    return row_h
 
 
 def transit_panel_reserved_height(config):
@@ -497,7 +518,11 @@ def draw_weather_text_block(
 
     gap_td = 8
     line_gap = 4
-    temp_h = font_temp.get_height()
+    temp_line_h = font_temp.get_height()
+    icon_target_h = max(1, int(round(temp_line_h * WEATHER_ICON_HEIGHT_FACTOR)))
+    temp_h = (
+        max(temp_line_h, icon_target_h) if icon_path else temp_line_h
+    )
     if desc_lines:
         dh = font_desc.get_height()
         desc_block_h = len(desc_lines) * dh + max(0, len(desc_lines) - 1) * line_gap
@@ -505,10 +530,13 @@ def draw_weather_text_block(
         desc_block_h = 0
     note_h = (4 + font_note.get_height()) if forecast_line else 0
     total_h = temp_h + gap_td + desc_block_h + note_h
+    v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
 
     if mode == "screen_right":
         temp_text_w = font_temp.size(temp_line)[0]
-        icon_extra = _weather_icon_row_width(icon_path, temp_h)
+        icon_extra = _weather_icon_row_width(
+            icon_path, temp_line_h, icon_target_h
+        )
         max_w = temp_text_w + icon_extra
         for ln in desc_lines:
             max_w = max(max_w, font_desc.size(ln)[0])
@@ -516,7 +544,8 @@ def draw_weather_text_block(
             max_w = max(max_w, font_note.size(forecast_line)[0])
         column_left = right_x - max_w
 
-        y = max(int(uh * 0.14), (uh - total_h) // 2)
+        y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
+        y = max(4, min(y, uh - total_h - 8))
         y += _blit_temperature_with_icon(
             surface,
             "right",
@@ -545,7 +574,7 @@ def draw_weather_text_block(
     gap_px = int(layout["weather_gap_after_character_px"])
     left_x = char_rect.right + gap_px
     left_x = max(0, min(left_x, screen_w - 72))
-    y = int(float(layout["weather_top_pct"]) * uh)
+    y = int(float(layout["weather_top_pct"]) * uh) + v_off
     y = max(4, min(y, uh - total_h - 8))
 
     y += _blit_temperature_with_icon(

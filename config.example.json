@@ -16,6 +16,7 @@
   "layout": {
     "weather_mode": "after_character",
     "weather_top_pct": 0.07,
+    "weather_transit_vertical_offset_px": -28,
     "weather_gap_after_character_px": 12,
     "character_center_x_pct": 0.28,
     "weather_temp_font_min": 52,

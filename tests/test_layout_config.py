@@ -6,6 +6,7 @@ def test_effective_layout_defaults():
     L = layout_config.effective_layout(cfg)
     assert L["weather_mode"] == "after_character"
     assert L["character_center_x_pct"] == 0.28
+    assert L["weather_transit_vertical_offset_px"] == -28
 
 
 def test_effective_layout_override():
