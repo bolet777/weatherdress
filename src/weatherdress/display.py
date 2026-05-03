@@ -585,6 +585,21 @@ def _transit_blit_times_row(
             x += gap
 
 
+def _metro_headsign_display_label(headsign_text: str) -> str:
+    """
+    Trip headsign GTFS / libellé mappé : parfois « Station Angrignon » alors que l’écran
+    préfixe déjà par « Direction ». On retire uniquement le premier mot s’il est « station »
+    (mot entier), pour éviter « Direction station … ».
+    """
+    t = (headsign_text or "").strip()
+    if not t:
+        return t
+    parts = t.split()
+    if parts and parts[0].lower() == "station":
+        return " ".join(parts[1:]).strip()
+    return t
+
+
 def draw_transit_panel(
     screen,
     transit_data,
@@ -633,14 +648,19 @@ def draw_transit_panel(
     metro_station = (transit_config.get("metro_station") or "").strip()
     metro_rows: list[tuple] = []
     for headsign, minutes in sorted(transit_data.get("metro", {}).items()):
-        direction = (metro_directions.get(headsign, headsign) or "").strip()
+        direction = _metro_headsign_display_label(
+            metro_directions.get(headsign, headsign) or ""
+        )
         if metro_station:
             st = metro_station
             if st.lower().startswith("station"):
                 title_m = st[0].upper() + st[1:] if st else st
             else:
                 title_m = f"Station {st}"
-            subtitle_m = direction
+            if direction.lower().startswith("direction"):
+                subtitle_m = direction[0].upper() + direction[1:] if direction else direction
+            else:
+                subtitle_m = f"Direction {direction}" if direction else ""
         else:
             title_m = direction
             subtitle_m = ""
