@@ -9,6 +9,7 @@ from . import background_assets
 from . import character_assets
 from . import i18n
 from . import layout_config
+from . import outfit as outfit_module
 from . import transit as transit_module
 from . import weather_icons
 from .paths import IMAGES_DIR
@@ -42,15 +43,6 @@ TRANSIT_CARD_SEP = (188, 194, 204)
 # Texte sur la carte (fond clair)
 TRANSIT_LABEL_ON_LIGHT = (34, 52, 102)
 TRANSIT_TIMES_ON_LIGHT = (168, 82, 22)
-
-ACCESSORY_BADGE_OFFSET = {
-    "umbrella": (0.2, 0.8),
-    "sunglasses": (0.5, 0.1),
-    "hat": (0.5, 0.05),
-    "boots": (0.7, 0.85),
-    "scarf": (0.6, 0.4),
-}
-
 
 def _rgb_setting(config, key, default):
     """Lit une couleur RGB depuis config[key] : \"#rrggbb\" ou [R,G,B]. Sinon default."""
@@ -753,39 +745,25 @@ def _metro_headsign_display_label(headsign_text: str) -> str:
     return t
 
 
-def draw_transit_panel(
-    screen,
+def _transit_panel_build_rows(
     transit_data,
     config,
     *,
-    column_left,
+    screen_h,
     start_y,
-    margin_right,
-    bg_surf,
     transit_phase_t=0.0,
 ):
     """
-    transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
-    Cartes blanches (bandeau mode + texte + horaires), style tableau d’arrêt.
-
-    Si transit.transit_alternate_seconds > 0 (défaut 5), un seul arrêt bus et une seule
-    direction métro à la fois, alternés toutes les N secondes (même phase). Si la clé
-    vaut 0, entrelacement de toutes les lignes comme avant.
+    Liste des cartes transport à afficher (même logique que draw_transit_panel).
+    Chaque entrée : (mode, title, subtitle, minutes, strip_color).
     """
-    if not transit_module.transit_config_enabled(config):
-        return
     transit_data = transit_data or {"bus": {}, "metro": {}}
-    screen_w, screen_h = screen.get_size()
     transit_config = config.get("transit", {}) or {}
     metro_color = tuple(
         transit_config.get("metro_line_color", [0, 70, 168])[:3]
     )
     metro_directions = transit_config.get("metro_directions", {}) or {}
 
-    right_x = screen_w - margin_right
-    card_w = max(40, right_x - int(column_left))
-    br = TRANSIT_CARD_BORDER_RADIUS
-    strip_w = min(TRANSIT_STRIP_WIDTH, card_w // 3)
     row_stride = TRANSIT_CARD_HEIGHT + TRANSIT_CARD_GAP
     max_rows = max(1, (screen_h - 8 - int(start_y)) // row_stride)
 
@@ -840,7 +818,55 @@ def draw_transit_panel(
                 rows.append(bus_rows[i])
             if i < len(metro_rows):
                 rows.append(metro_rows[i])
-    rows = rows[:max_rows]
+    return rows[:max_rows], row_stride
+
+
+def transit_panel_last_visible_card_bottom(screen_h, start_y, rows, row_stride):
+    """Bas de la dernière carte réellement visible (même coupe que la boucle de dessin)."""
+    last_bottom = None
+    for i, _ in enumerate(rows):
+        card_y = int(start_y) + i * row_stride
+        if card_y + TRANSIT_CARD_HEIGHT > screen_h - 4:
+            break
+        last_bottom = card_y + TRANSIT_CARD_HEIGHT
+    return last_bottom
+
+
+def draw_transit_panel(
+    screen,
+    transit_data,
+    config,
+    *,
+    column_left,
+    start_y,
+    margin_right,
+    bg_surf,
+    transit_phase_t=0.0,
+):
+    """
+    transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
+    Cartes blanches (bandeau mode + texte + horaires), style tableau d’arrêt.
+
+    Si transit.transit_alternate_seconds > 0 (défaut 5), un seul arrêt bus et une seule
+    direction métro à la fois, alternés toutes les N secondes (même phase). Si la clé
+    vaut 0, entrelacement de toutes les lignes comme avant.
+    """
+    if not transit_module.transit_config_enabled(config):
+        return
+    screen_w, screen_h = screen.get_size()
+
+    rows, row_stride = _transit_panel_build_rows(
+        transit_data,
+        config,
+        screen_h=screen_h,
+        start_y=start_y,
+        transit_phase_t=transit_phase_t,
+    )
+
+    right_x = screen_w - margin_right
+    card_w = max(40, right_x - int(column_left))
+    br = TRANSIT_CARD_BORDER_RADIUS
+    strip_w = min(TRANSIT_STRIP_WIDTH, card_w // 3)
 
     title_font = pygame.font.SysFont("sans-serif", TRANSIT_CARD_TITLE_PX, bold=True)
     sub_font = pygame.font.SysFont("sans-serif", TRANSIT_CARD_SUBTITLE_PX, bold=False)
@@ -970,19 +996,61 @@ def render(
 
     layout = layout_config.effective_layout(config)
     char_center_x = int(screen_w * float(layout["character_center_x_pct"]))
-    char_y = usable_h // 2 + int(layout["character_center_y_offset_px"])
+    char_y_fallback = usable_h // 2 + int(layout["character_center_y_offset_px"])
     char_max_h = int(usable_h * float(layout["character_max_height_pct"]))
     char_max_w = int(screen_w * float(layout["character_max_width_pct"]))
 
     if char_img:
         char_img = fit_image(char_img, char_max_w, char_max_h)
         char_img = apply_character_colorkey(char_img, config)
-        char_rect = char_img.get_rect(center=(char_center_x, char_y))
+        char_rect = char_img.get_rect()
+        char_rect.centerx = char_center_x
+        char_rect.centery = char_y_fallback
+    else:
+        char_rect = pygame.Rect(0, 0, 200, 350)
+        char_rect.centerx = char_center_x
+        char_rect.centery = char_y_fallback
+
+    margin_right = max(
+        16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
+    )
+
+    weather_layout = draw_weather_text_block(
+        screen,
+        config,
+        current_weather,
+        outfit,
+        screen_w,
+        screen_h,
+        use_photo_background,
+        use_circle,
+        char_rect,
+        layout,
+        usable_screen_h=usable_h,
+    )
+
+    transit_bottom = None
+    if transit_module.transit_config_enabled(config):
+        transit_start_y = weather_layout["bottom_y"] + TRANSIT_AFTER_WEATHER_GAP
+        rows, row_stride = _transit_panel_build_rows(
+            transit_data,
+            config,
+            screen_h=screen_h,
+            start_y=transit_start_y,
+            transit_phase_t=transit_phase_t,
+        )
+        transit_bottom = transit_panel_last_visible_card_bottom(
+            screen_h, transit_start_y, rows, row_stride
+        )
+
+    if transit_bottom is not None:
+        char_rect.midbottom = (char_center_x, transit_bottom)
+    else:
+        char_rect.centery = char_y_fallback
+
+    if char_img:
         screen.blit(char_img, char_rect)
     else:
-        # Placeholder si l'image est manquante
-        char_rect = pygame.Rect(0, 0, 200, 350)
-        char_rect.center = (char_center_x, char_y)
         if not use_photo_background:
             pygame.draw.rect(screen, (200, 200, 200), char_rect, border_radius=12)
         font = pygame.font.SysFont("sans-serif", 18)
@@ -1015,36 +1083,18 @@ def render(
         if acc_img:
             acc_img = fit_image(acc_img, char_rect.width, char_rect.height)
             acc_img = apply_character_colorkey(acc_img, config)
-            # Appliquer l'alpha sur une copie
             ghost = acc_img.copy()
             ghost.set_alpha(FUTURE_ALPHA)
             screen.blit(ghost, char_rect)
             badge_text = f"{item['hour']}H"
-            offset = ACCESSORY_BADGE_OFFSET.get(item["accessory"], (0.8, 0.2))
+            offset = outfit_module.accessory_badge_offset(item["accessory"])
             badge_center = (
                 char_rect.left + int(char_rect.width * offset[0]),
                 char_rect.top + int(char_rect.height * offset[1]),
             )
             draw_badge(screen, badge_text, badge_center)
 
-    weather_layout = draw_weather_text_block(
-        screen,
-        config,
-        current_weather,
-        outfit,
-        screen_w,
-        screen_h,
-        use_photo_background,
-        use_circle,
-        char_rect,
-        layout,
-        usable_screen_h=usable_h,
-    )
-
     if transit_module.transit_config_enabled(config):
-        margin_right = max(
-            16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
-        )
         draw_transit_panel(
             screen,
             transit_data,

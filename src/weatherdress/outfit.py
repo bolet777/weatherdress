@@ -1,5 +1,72 @@
 import random
 
+# Pastille horaire (accessoires futurs) : fraction du rect personnage. Défaut si absent du rule.
+DEFAULT_ACCESSORY_BADGE_OFFSET = (0.8, 0.2)
+
+ACCESSORY_RULES = [
+    {
+        "id": "umbrella",
+        "predicate": lambda w: w["rain"] > 0,
+        "badge_offset": (0.2, 0.8),
+    },
+    {
+        "id": "sun_screen",
+        "slot": "sun",
+        "predicate": lambda w: w["clouds"] < 20 and 9 <= w["hour"] <= 17,
+        "badge_offset": (0.42, 0.12),
+    },
+    {
+        "id": "sunglasses",
+        "slot": "sun",
+        "predicate": lambda w: w["clouds"] < 30 and 7 <= w["hour"] <= 17,
+        "badge_offset": (0.5, 0.1),
+    },
+    {
+        "id": "cap",
+        "slot": "head",
+        "predicate": lambda w: w["clouds"] < 30 and 9 <= w["hour"] <= 17,
+        "badge_offset": (0.48, 0.07),
+    },
+    {
+        "id": "hat",
+        "slot": "head",
+        "predicate": lambda w: (
+            (w["clouds"] < 20 and 9 <= w["hour"] <= 16) or w["temp"] >= 28
+        ),
+        "badge_offset": (0.5, 0.05),
+    },
+    {
+        "id": "rain_boots",
+        "slot": "feet",
+        "predicate": lambda w: w["rain"] > 3 or w["snow"] > 0,
+        "badge_offset": (0.76, 0.88),
+    },
+    {
+        "id": "boots",
+        "slot": "feet",
+        "predicate": lambda w: w["snow"] > 0 or w["rain"] > 5,
+        "badge_offset": (0.7, 0.85),
+    },
+    {
+        "id": "scarf",
+        "predicate": lambda w: w["temp"] < 5 or w["wind_kmh"] > 30,
+        "badge_offset": (0.6, 0.4),
+    },
+    {
+        "id": "crampons",
+        "predicate": lambda w: w["snow"] > 0 or (w["rain"] > 0 and w["temp"] <= 2),
+        "badge_offset": (0.62, 0.82),
+    },
+]
+
+
+def accessory_badge_offset(accessory_id):
+    """Position relative de la pastille pour un accessoire futur (sinon défaut)."""
+    for rule in ACCESSORY_RULES:
+        if rule["id"] == accessory_id:
+            return rule.get("badge_offset", DEFAULT_ACCESSORY_BADGE_OFFSET)
+    return DEFAULT_ACCESSORY_BADGE_OFFSET
+
 
 # Seuils de température pour le personnage de base
 def character_type(temp, snow):
@@ -42,26 +109,20 @@ def active_accessories(weather):
     """
     Retourne la liste des accessoires actifs pour une tranche météo donnée.
     `weather` est un dict avec temp, rain, snow, wind_kmh, clouds, hour.
+    Règles avec le même `slot` : seule la première qui matche dans ACCESSORY_RULES est gardée.
     """
-    accessories = []
-
-    if weather["rain"] > 0:
-        accessories.append("umbrella")
-
-    if weather["clouds"] < 30 and 7 <= weather["hour"] <= 17:
-        accessories.append("sunglasses")
-
-    # Chapeau : grand soleil ou très chaud
-    if (weather["clouds"] < 20 and 9 <= weather["hour"] <= 16) or weather["temp"] >= 28:
-        accessories.append("hat")
-
-    if weather["snow"] > 0 or weather["rain"] > 5:
-        accessories.append("boots")
-
-    if weather["temp"] < 5 or weather["wind_kmh"] > 30:
-        accessories.append("scarf")
-
-    return accessories
+    out = []
+    filled_slots = set()
+    for rule in ACCESSORY_RULES:
+        if not rule["predicate"](weather):
+            continue
+        slot = rule.get("slot")
+        if slot is not None:
+            if slot in filled_slots:
+                continue
+            filled_slots.add(slot)
+        out.append(rule["id"])
+    return out
 
 
 def get_outfit(current_weather, forecast_slices):

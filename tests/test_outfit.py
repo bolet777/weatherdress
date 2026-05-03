@@ -36,7 +36,8 @@ def test_accessories_rain():
 
 
 def test_accessories_sunglasses():
-    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 10, "hour": 12, "temp": 22}
+    # clouds 25: sunglasses (partly cloudy) but not sun_screen (needs clouds < 20)
+    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 25, "hour": 12, "temp": 22}
     assert "sunglasses" in active_accessories(w)
 
 
