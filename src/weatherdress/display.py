@@ -9,6 +9,7 @@ from . import character_assets
 from . import i18n
 from . import layout_config
 from . import transit as transit_module
+from .paths import IMAGES_DIR
 
 
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255)
@@ -30,6 +31,7 @@ TRANSIT_CARD_BORDER_RADIUS = 13
 TRANSIT_CARD_TITLE_PX = 22
 TRANSIT_CARD_SUBTITLE_PX = 16
 TRANSIT_CARD_TIMES_PX = 24
+TRANSIT_STRIP_ICON_PAD = 4
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_CARD_BG = (252, 253, 255)
 TRANSIT_CARD_STRIP_BUS = (18, 52, 125)
@@ -520,7 +522,7 @@ def _transit_blit_card_shadow(screen, rect, br):
 
 
 def _transit_strip_mode_letter(screen, strip_rect, letter):
-    """Lettre seule centrée sur le bandeau (B = bus, M = métro)."""
+    """Repli : lettre centrée si les PNG d’icônes manquent."""
     x, y, w, h = strip_rect
     cx, cy = x + w // 2, y + h // 2
     font = pygame.font.SysFont("sans-serif", TRANSIT_STRIP_MODE_LETTER_PX, bold=True)
@@ -528,12 +530,30 @@ def _transit_strip_mode_letter(screen, strip_rect, letter):
     screen.blit(surf, surf.get_rect(center=(cx, cy)))
 
 
+def _transit_blit_strip_icon(screen, strip_rect, icon_filename):
+    """
+    Icône centrée dans le bandeau, même taille que la cartouche (pas d’élargissement).
+    """
+    path = os.path.join(IMAGES_DIR, "icons", icon_filename)
+    img = load_image(path)
+    if not img:
+        return False
+    pad = TRANSIT_STRIP_ICON_PAD
+    mw = max(1, strip_rect.width - 2 * pad)
+    mh = max(1, strip_rect.height - 2 * pad)
+    scaled = fit_image(img, mw, mh)
+    screen.blit(scaled, scaled.get_rect(center=strip_rect.center))
+    return True
+
+
 def _transit_strip_bus(screen, strip_rect):
-    _transit_strip_mode_letter(screen, strip_rect, "B")
+    if not _transit_blit_strip_icon(screen, strip_rect, "bus.png"):
+        _transit_strip_mode_letter(screen, strip_rect, "B")
 
 
 def _transit_strip_metro(screen, strip_rect):
-    _transit_strip_mode_letter(screen, strip_rect, "M")
+    if not _transit_blit_strip_icon(screen, strip_rect, "subway.png"):
+        _transit_strip_mode_letter(screen, strip_rect, "M")
 
 
 def _transit_blit_times_row(
