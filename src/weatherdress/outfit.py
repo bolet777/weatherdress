@@ -1,5 +1,7 @@
+import os
 import random
 
+from . import character_assets
 # Pastille horaire (accessoires futurs) : fraction du rect personnage. Défaut si absent du rule.
 DEFAULT_ACCESSORY_BADGE_OFFSET = (0.8, 0.2)
 
@@ -145,16 +147,52 @@ def character_sprite_prefix(ctype):
     return ctype
 
 
-def pick_identity(config=None):
+def pick_identity(config=None, characters_dir=None, current_weather=None):
     """
-    Choisit genre et numéro de variante (1…N).
-    `character_variant_max` dans config (défaut 6) borne le tirage aléatoire.
+    Choisit genre et numéro de variante.
+
+    Si ``characters_dir`` pointe vers ``images/characters``, les numéros possibles
+    sont ceux pour lesquels un PNG existe pour le préfixe météo courant (ou
+    ``normal`` si pas encore de météo). Tirage uniforme dans cette liste.
+
+    Clé optionnelle ``character_variant_max`` (> 0) : clip de la liste
+    (n <= max). Si le répertoire est absent ou vide, repli sur l’ancien tirage
+    ``1…character_variant_max`` (défaut 6).
     """
     cfg = config or {}
     gender = random.choice(["woman", "man"])
-    max_n = int(cfg.get("character_variant_max", 6))
-    max_n = max(1, min(max_n, 99))
-    number = random.randint(1, max_n)
+
+    def _fallback_randint():
+        max_n = int(cfg.get("character_variant_max", 6))
+        max_n = max(1, min(max_n, 99))
+        return random.randint(1, max_n)
+
+    if not characters_dir or not os.path.isdir(characters_dir):
+        return gender, _fallback_randint()
+
+    if current_weather is not None:
+        ctype = character_type(current_weather["temp"], current_weather["snow"])
+        prefix = character_sprite_prefix(ctype)
+    else:
+        prefix = "normal"
+
+    nums = character_assets.list_character_variant_numbers(
+        characters_dir, prefix, gender
+    )
+    if not nums:
+        return gender, _fallback_randint()
+
+    raw_cap = cfg.get("character_variant_max")
+    try:
+        cap = int(raw_cap) if raw_cap is not None else None
+    except (TypeError, ValueError):
+        cap = None
+    if cap is not None and cap > 0:
+        clipped = [n for n in nums if n <= cap]
+        if clipped:
+            nums = clipped
+
+    number = random.choice(nums)
     return gender, number
 
 

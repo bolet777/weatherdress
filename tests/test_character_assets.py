@@ -4,6 +4,17 @@ import tempfile
 import weatherdress.character_assets as character_assets
 
 
+def test_list_character_variant_numbers():
+    with tempfile.TemporaryDirectory() as d:
+        open(os.path.join(d, "normal_man1.png"), "wb").close()
+        open(os.path.join(d, "normal_man5.png"), "wb").close()
+        open(os.path.join(d, "noise.txt"), "wb").close()
+        assert character_assets.list_character_variant_numbers(d, "normal", "man") == [
+            1,
+            5,
+        ]
+
+
 def test_resolve_falls_back_to_lower_number():
     with tempfile.TemporaryDirectory() as d:
         path1 = os.path.join(d, "hot_man1.png")

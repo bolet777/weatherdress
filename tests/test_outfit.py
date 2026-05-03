@@ -264,9 +264,41 @@ def test_get_outfit_veryhot_uses_hot_sprite_prefix():
     assert r["character"] == "hot_woman1"
 
 
-def test_pick_identity_respects_character_variant_max():
-    for _ in range(50):
-        _, n = pick_identity({"character_variant_max": 3})
+def test_pick_identity_respects_character_variant_max_clip(tmp_path):
+    d = tmp_path / "ch"
+    d.mkdir()
+    for g in ("woman", "man"):
+        for n in (1, 2, 3, 4):
+            (d / f"normal_{g}{n}.png").write_bytes(b"")
+    weather = {"temp": 20, "snow": 0}
+    for _ in range(40):
+        _, n = pick_identity(
+            {"character_variant_max": 2}, str(d), weather
+        )
+        assert n in (1, 2)
+
+
+def test_pick_identity_chooses_only_existing_variants(tmp_path):
+    d = tmp_path / "ch"
+    d.mkdir()
+    for g in ("man", "woman"):
+        for n in (1, 3, 6):
+            (d / f"hot_{g}{n}.png").write_bytes(b"")
+    weather = {"temp": 30, "snow": 0}
+    seen = set()
+    for _ in range(80):
+        g, n = pick_identity({}, str(d), weather)
+        assert n in (1, 3, 6)
+        seen.add((g, n))
+    assert len(seen) >= 4
+
+
+def test_pick_identity_fallback_when_no_matching_files(tmp_path):
+    d = tmp_path / "empty"
+    d.mkdir()
+    weather = {"temp": 20, "snow": 0}
+    for _ in range(20):
+        _, n = pick_identity({"character_variant_max": 3}, str(d), weather)
         assert 1 <= n <= 3
 
 

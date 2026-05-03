@@ -1,8 +1,25 @@
 import os
 import re
+from typing import List
 
 # Nom de fichier : {condition}_{woman|man}{n}.png
 CHARACTER_FILENAME_RE = re.compile(r"^(.+)_(woman|man)(\d+)$")
+
+
+def list_character_variant_numbers(characters_dir: str, prefix: str, gender: str) -> List[int]:
+    """Numéros ``n`` pour lesquels ``{prefix}_{gender}{n}.png`` existe."""
+    if not characters_dir or not os.path.isdir(characters_dir):
+        return []
+    tail = re.compile(
+        rf"^{re.escape(prefix)}_{re.escape(gender)}(\d+)\.png$",
+        re.IGNORECASE,
+    )
+    nums: List[int] = []
+    for name in os.listdir(characters_dir):
+        m = tail.match(name)
+        if m:
+            nums.append(int(m.group(1)))
+    return sorted(nums)
 
 
 def resolve_character_png(characters_dir, character_base):

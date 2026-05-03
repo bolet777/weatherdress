@@ -108,7 +108,8 @@ def main():
     _set_window_icon()
 
     rotate_identity = identity_config.identity_on_each_refresh(config)
-    gender, number = outfit.pick_identity(config)
+    chars_dir = os.path.join(IMAGES_DIR, "characters")
+    gender, number = outfit.pick_identity(config, chars_dir)
 
     refresh_interval = config["refresh_minutes"] * 60
     last_refresh = 0
@@ -194,7 +195,9 @@ def main():
                     lang=lang,
                 )
                 if rotate_identity:
-                    gender, number = outfit.pick_identity(config)
+                    gender, number = outfit.pick_identity(
+                        config, chars_dir, current_weather_data
+                    )
                 current_outfit = outfit.get_outfit_with_identity(
                     current_weather_data, forecast, gender, number
                 )

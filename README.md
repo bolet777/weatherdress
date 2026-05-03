@@ -198,7 +198,7 @@ make test
 | `forecast_hours`   | Horizon de prévision pour les accessoires futurs |
 | `forecast_step_hours` | Granularité des tranches (3h sur l'API gratuite) |
 | `identity_on_each_refresh` | `true` / `false` : nouveau couple genre / variante à chaque fetch météo ou identité fixe. **Si la clé est absente** et `refresh_minutes` ≤ 1, la rotation est **activée** (pratique pour les tests) ; sinon identité fixe au démarrage (comportement Pi). |
-| `character_variant_max` | Borne supérieure du numéro tiré au hasard (1…N, défaut **6**) |
+| `character_variant_max` | Optionnel, **clip** `n ≤ max` après lecture des PNG dans `images/characters/` pour le préfixe météo courant. Sans la clé ou ≤ 0 : tous les fichiers présents sont éligibles. |
 | `transit` | Optionnel : bandeau bas STM (bus temps réel + métro au prochain horaire GTFS). Requiert au minimum `gtfs_url` et `metro_station`. Clés utiles : `stm_api_key` (Open Data STM, pour le flux tripUpdates bus), `bus_stops` (`stop_id` → libellé), `metro_route_id`, `metro_directions` (libellés : clés = `trip_headsign` exact du GTFS), `transit_refresh_seconds`. Le GTFS est mis en cache sous `cache/gtfs_stm.zip`. |
 
 ---
@@ -206,7 +206,9 @@ make test
 ## Personnages : variantes et repli automatique
 
 - Les types **très froid / très chaud** du moteur météo utilisent les sprites **`cold_*`** et **`hot_*`** (pas de fichiers `verycold` / `veryhot` requis).
-- Si `normal_woman5.png` est absent, l’app charge **`normal_woman4`** … jusqu’à **`…1`** dès qu’un fichier existe, ce qui permet d’ajouter les images progressivement.
+- **Tirage d’identité** : pour le préfixe courant (`normal` avant la première météo, puis le préfixe dérivé de la température / neige), l’app liste les PNG **`{prefix}_{woman|man}{n}.png`** présents et choisit `n` au hasard dans cette liste. La clé **`character_variant_max`** (> 0) limite ce choix à `n ≤ max` ; absente ou ≤ 0 : toutes les variantes trouvées sur le disque.
+- Sans répertoire valide ou sans fichier pour le préfixe / genre : repli sur un entier aléatoire **`1…character_variant_max`** (défaut 6).
+- À l’**affichage**, si `normal_woman5.png` est absent, l’app charge **`normal_woman4`** … jusqu’à **`…1`** dès qu’un fichier existe (repli distinct du tirage d’identité).
 
 ---
 

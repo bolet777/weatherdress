@@ -29,8 +29,8 @@ COLUMN_OUTER_RADIUS_SCALE = 1.625 * 1.15 * 1.2
 COLUMN_RING_WIDTH_OVER_OUTER_RADIUS = 1.0 / 6.0
 
 
-# Pastille heure (futur) : position ~2h sur l’anneau ; >1 éloigne du centre.
-COLUMN_HOUR_BADGE_RADIAL_OUT = 1.14
+# Pastille heure (futur) : centre sur le bord du plateau, direction haut-droite (45°).
+_COLUMN_BADGE_DIR_XY = math.sqrt(0.5)  # cos(π/4), sin(π/4) — unitaire écran (+x, -y)
 
 
 # Colonne : espace entre le bord droit du disque et char_rect.left ; marge écran à gauche.
@@ -346,7 +346,7 @@ def draw_future_accessories_column(
     y0 = char_rect.centery - total_h // 2
 
     acc_dir = os.path.join(images_dir, "accessories")
-    plate_rgba = (28, 30, 36, 210)
+    plate_rgba = (50, 54, 62, 210)
     track_rgba = (120, 125, 135, 200)
 
     for i, (kind, acc_id, fut) in enumerate(slots):
@@ -387,9 +387,9 @@ def draw_future_accessories_column(
                 hb = int(hour)
             except (TypeError, ValueError):
                 hb = 0
-            bf = COLUMN_HOUR_BADGE_RADIAL_OUT
+            u = _COLUMN_BADGE_DIR_XY
             badge_center = (
-                cx + int(outer_r * 0.58 * bf),
-                cy - int(outer_r * 0.52 * bf),
+                int(round(cx + outer_r * u)),
+                int(round(cy - outer_r * u)),
             )
             draw_badge(surface, f"{hb}H", badge_center)

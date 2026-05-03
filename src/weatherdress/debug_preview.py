@@ -60,8 +60,7 @@ def _fc(
     }
 
 
-# Chaque scénario : météo courante + prévisions qui ajoutent 2–3 accessoires futurs
-# (via ``get_outfit_with_identity(weather, forecast, ...)`` — voir ``DebugPreview``).
+# Chaque scénario : météo courante + prévisions (variante perso = fichiers sur disque).
 SCENARIOS: List[Dict[str, Any]] = [
     {
         "label": "Heavy rain + cold (umbrella, rain_boots)",
@@ -655,7 +654,11 @@ SCENARIOS: List[Dict[str, Any]] = [
 
 
 class DebugPreview:
-    """Advances through ``SCENARIOS`` every ``debug_preview_interval_seconds``."""
+    """Advances through ``SCENARIOS`` every ``debug_preview_interval_seconds``.
+
+    Identity ``gender``/``number`` comes from ``pick_identity`` (variant numbers
+    follow PNGs on disk, not only ``character_variant_max``).
+    """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         cfg = config or {}
