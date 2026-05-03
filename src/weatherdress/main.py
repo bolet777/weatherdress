@@ -7,6 +7,7 @@ import time
 
 import pygame
 
+from . import debug_preview
 from . import display
 from . import i18n
 from . import identity_config
@@ -115,12 +116,17 @@ def main():
     current_weather_data = None
     last_weather_error = None
 
+    debug_preview_mode = bool(config.get("debug_preview"))
+    debug_controller = (
+        debug_preview.DebugPreview(config) if debug_preview_mode else None
+    )
+
     transit_fetcher = None
     transit_state = {"ready": False, "error": None}
     transit_data = {"bus": {}, "metro": {}}
     last_transit_refresh = 0.0
     transit_refresh_secs = 30
-    if transit_module.transit_config_enabled(config):
+    if not debug_preview_mode and transit_module.transit_config_enabled(config):
         transit_fetcher = transit_module.TransitFetcher(config)
         transit_refresh_secs = int(
             config.get("transit", {}).get("transit_refresh_seconds", 30)
@@ -148,7 +154,11 @@ def main():
                 sys.exit()
 
         now = time.time()
-        if transit_fetcher and transit_state["ready"]:
+        if (
+            not debug_preview_mode
+            and transit_fetcher
+            and transit_state["ready"]
+        ):
             transit_due = (last_transit_refresh == 0.0) or (
                 now - last_transit_refresh >= transit_refresh_secs
             )
@@ -159,7 +169,15 @@ def main():
                 }
                 last_transit_refresh = now
 
-        if now - last_refresh >= refresh_interval:
+        if debug_controller is not None:
+            frame = debug_controller.next_frame(now, gender, number)
+            current_weather_data = frame["weather"]
+            current_outfit = frame["outfit"]
+            last_weather_error = None
+            pygame.display.set_caption(
+                f"{i18n.t(config, 'window_title')} — {frame['label']}"
+            )
+        elif now - last_refresh >= refresh_interval:
             try:
                 lang = i18n.effective_language(config)
                 current_weather_data = weather.get_current_weather(
@@ -189,6 +207,12 @@ def main():
                 # On garde l'affichage précédent, on réessaie dans 5 minutes
                 last_refresh = now - refresh_interval + 300
 
+        transit_for_render = None
+        if not debug_preview_mode and transit_module.transit_config_enabled(
+            config
+        ):
+            transit_for_render = transit_data
+
         if current_outfit and current_weather_data:
             display.render(
                 screen,
@@ -196,9 +220,7 @@ def main():
                 current_weather_data,
                 IMAGES_DIR,
                 config,
-                transit_data=transit_data
-                if transit_module.transit_config_enabled(config)
-                else None,
+                transit_data=transit_for_render,
                 transit_phase_t=now,
             )
         elif last_weather_error:

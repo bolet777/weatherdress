@@ -105,7 +105,9 @@ Exemples : `cold_woman1.png`, `normal_man1.png`, `snow_woman1.png`
 | `umbrella.png`   | Pluie prévue                             |
 | `sunglasses.png` | Peu nuageux + entre 7h et 17h            |
 | `hat.png`        | Grand soleil (9h–16h) ou ≥ 28°C         |
-| `boots.png`      | Neige ou pluie forte (> 5 mm/h)         |
+| `boots.png`      | Neige : `snow` > 0                       |
+| `rain_boots.png` | Pluie : `rain` > 3, sans neige         |
+| `crampons.png`   | Glace : code OWM **511** (pluie verglaçante, même si `snow` > 0) ; ou sans neige et `rain` > 0 et `temp` ≤ 2°C |
 | `scarf.png`      | Temp < 5°C ou vent > 30 km/h            |
 
 Les images doivent être en PNG avec transparence (canal alpha).

@@ -3,6 +3,18 @@ import random
 # Pastille horaire (accessoires futurs) : fraction du rect personnage. Défaut si absent du rule.
 DEFAULT_ACCESSORY_BADGE_OFFSET = (0.8, 0.2)
 
+
+def _condition_id_int(w):
+    """OpenWeather `id` (int) ; tolère str ou types numériques."""
+    c = w.get("condition_id")
+    if c is None:
+        return None
+    try:
+        return int(c)
+    except (TypeError, ValueError):
+        return None
+
+
 ACCESSORY_RULES = [
     {
         "id": "umbrella",
@@ -36,16 +48,16 @@ ACCESSORY_RULES = [
         "badge_offset": (0.5, 0.05),
     },
     {
-        "id": "rain_boots",
-        "slot": "feet",
-        "predicate": lambda w: w["rain"] > 3 or w["snow"] > 0,
-        "badge_offset": (0.76, 0.88),
-    },
-    {
         "id": "boots",
         "slot": "feet",
-        "predicate": lambda w: w["snow"] > 0 or w["rain"] > 5,
+        "predicate": lambda w: w["snow"] > 0,
         "badge_offset": (0.7, 0.85),
+    },
+    {
+        "id": "rain_boots",
+        "slot": "feet",
+        "predicate": lambda w: w["rain"] > 3 and w["snow"] <= 0,
+        "badge_offset": (0.76, 0.88),
     },
     {
         "id": "scarf",
@@ -54,7 +66,12 @@ ACCESSORY_RULES = [
     },
     {
         "id": "crampons",
-        "predicate": lambda w: w["snow"] > 0 or (w["rain"] > 0 and w["temp"] <= 2),
+        "predicate": lambda w: _condition_id_int(w) == 511
+        or (
+            w.get("snow", 0) <= 0
+            and w.get("rain", 0) > 0
+            and w["temp"] <= 2
+        ),
         "badge_offset": (0.62, 0.82),
     },
 ]
@@ -108,7 +125,8 @@ def pick_identity(config=None):
 def active_accessories(weather):
     """
     Retourne la liste des accessoires actifs pour une tranche météo donnée.
-    `weather` est un dict avec temp, rain, snow, wind_kmh, clouds, hour.
+    `weather` est un dict avec temp, rain, snow, wind_kmh, clouds, hour
+    et optionnellement condition_id (OpenWeather).
     Règles avec le même `slot` : seule la première qui matche dans ACCESSORY_RULES est gardée.
     """
     out = []

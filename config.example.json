@@ -31,6 +31,8 @@
   "forecast_step_hours": 3,
   "identity_on_each_refresh": false,
   "character_variant_max": 6,
+  "debug_preview": false,
+  "debug_preview_interval_seconds": 5,
   "transit": {
     "stm_api_key": "VOTRE_CLE_API_STM_ICI",
     "gtfs_url": "https://www.stm.info/sites/default/files/gtfs/gtfs_stm.zip",

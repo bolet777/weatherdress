@@ -51,6 +51,105 @@ def test_accessories_scarf_wind():
     assert "scarf" in active_accessories(w)
 
 
+def test_accessories_feet_snow_boots_not_rain_boots():
+    w = {
+        "rain": 0,
+        "snow": 1,
+        "wind_kmh": 8,
+        "clouds": 80,
+        "hour": 11,
+        "temp": -5,
+    }
+    acc = active_accessories(w)
+    assert "boots" in acc
+    assert "rain_boots" not in acc
+
+
+def test_accessories_feet_heavy_rain_rain_boots_not_snow_boots():
+    w = {
+        "rain": 8,
+        "snow": 0,
+        "wind_kmh": 12,
+        "clouds": 90,
+        "hour": 14,
+        "temp": 6,
+    }
+    acc = active_accessories(w)
+    assert "rain_boots" in acc
+    assert "boots" not in acc
+
+
+def test_accessories_crampons_cold_rain_no_snow():
+    w = {
+        "rain": 0.5,
+        "snow": 0,
+        "wind_kmh": 10,
+        "clouds": 90,
+        "hour": 10,
+        "temp": 1,
+    }
+    acc = active_accessories(w)
+    assert "crampons" in acc
+    assert "boots" not in acc
+
+
+def test_accessories_crampons_freezing_rain_condition_id():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 12,
+        "clouds": 100,
+        "hour": 7,
+        "temp": -2,
+        "condition_id": 511,
+    }
+    acc = active_accessories(w)
+    assert "crampons" in acc
+
+
+def test_accessories_crampons_condition_id_511_coerces_string():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 10,
+        "clouds": 100,
+        "hour": 8,
+        "temp": -1,
+        "condition_id": "511",
+    }
+    assert "crampons" in active_accessories(w)
+
+
+def test_accessories_crampons_511_even_if_trace_snow_reported():
+    """OWM peut remplir `snow` lors de brouillas / mélange alors que id = 511."""
+    w = {
+        "rain": 0,
+        "snow": 0.2,
+        "wind_kmh": 15,
+        "clouds": 100,
+        "hour": 9,
+        "temp": -1,
+        "condition_id": 511,
+    }
+    acc = active_accessories(w)
+    assert "crampons" in acc
+    assert "boots" in acc
+
+
+def test_accessories_no_crampons_when_snow_use_boots():
+    w = {
+        "rain": 0,
+        "snow": 1,
+        "wind_kmh": 8,
+        "clouds": 80,
+        "hour": 11,
+        "temp": -5,
+    }
+    acc = active_accessories(w)
+    assert "boots" in acc
+    assert "crampons" not in acc
+
+
 def test_get_outfit_verycold_uses_cold_sprite_prefix():
     current = {
         "temp": -15,
