@@ -6,6 +6,12 @@
   "fullscreen": true,
   "use_weather_background": true,
   "weather_background_alpha": 1.0,
+  "use_ambient_weather_background": false,
+  "ambient_twilight_minutes": 45,
+  "ambient_min_day_brightness": 0.22,
+  "ambient_night_bg": [10, 12, 20],
+  "ambient_day_clear_bg": [248, 250, 255],
+  "ambient_day_overcast_bg": [152, 158, 168],
   "character_colorkey": null,
   "layout": {
     "weather_mode": "after_character",

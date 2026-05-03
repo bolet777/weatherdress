@@ -177,6 +177,11 @@ make test
 | `fullscreen`       | `true` plein écran (Pi), `false` fenêtre (tests Mac) |
 | `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
 | `use_weather_background` | `true` (défaut) : image de fond selon la météo (`images/backgrounds/` + `background_map.json`). `false` : uniquement `background_color`. Voir `docs/background.md`. |
+| `weather_background_alpha` | Opacité de la photo de fond (0–1 ou 0–255). Avec `use_ambient_weather_background`, sert de plafond de base avant assombrissement jour/nuit / nuages. |
+| `use_ambient_weather_background` | `false` (défaut) : inchangé. `true` : couleur sous la photo et alpha dérivés du lever/coucher de soleil (API) et du pourcentage de nuages ; voir `docs/background.md`. |
+| `ambient_twilight_minutes` | Demi-largeur des transitions aube/crépuscule (défaut **45**). |
+| `ambient_min_day_brightness` | Plancher de luminosité de jour quand le ciel est couvert, 0–1 (défaut **0.22**). |
+| `ambient_night_bg`, `ambient_day_clear_bg`, `ambient_day_overcast_bg` | Couleurs `[R,G,B]` ou `"#rrggbb"` pour le dégradé sous la photo (nuit / jour clair / jour nuageux). |
 | `character_colorkey` | Optionnel : `[R,G,B]` pour rendre cette couleur transparente sur les sprites personnage/accessoires (ex. fond noir `[0,0,0]` si les PNG n’ont pas d’alpha). Risque si le dessin utilise la même couleur. |
 | `layout`           | Objet optionnel : position du personnage, placement du texte météo (`after_character` = à droite du sprite, en haut ; `screen_right` = bord droit), tailles min/max des polices. Détail : `docs/layout.md`. |
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |

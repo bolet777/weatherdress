@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pygame
 
+from . import ambient_background
 from . import background_assets
 from . import character_assets
 from . import i18n
@@ -756,8 +757,15 @@ def render(
         )
         if bg_surf:
             # Sous les zones semi-transparentes du fond météo : couleur config, pas le buffer écran.
-            screen.fill(background_color(config))
-            alpha = weather_background_alpha_255(config)
+            ambient = ambient_background.resolve_ambient_background(
+                current_weather, config
+            )
+            if ambient:
+                fill_rgb, alpha = ambient
+                screen.fill(fill_rgb)
+            else:
+                screen.fill(background_color(config))
+                alpha = weather_background_alpha_255(config)
             if alpha < 255:
                 faded = bg_surf.copy()
                 faded.set_alpha(alpha)

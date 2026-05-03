@@ -7,7 +7,10 @@ BASE_URL = "https://api.openweathermap.org/data/2.5"
 
 
 def get_current_weather(api_key, city, units="metric", lang=None):
-    """Retourne les conditions météo actuelles. `lang` : code ISO pour les libellés (ex. fr, en)."""
+    """
+    Retourne les conditions météo actuelles.
+    `lang` : code ISO pour les libellés (ex. fr, en).
+    """
     params = {"q": city, "appid": api_key, "units": units}
     if lang:
         params["lang"] = lang
@@ -20,7 +23,10 @@ def get_current_weather(api_key, city, units="metric", lang=None):
     data = resp.json()
 
     w0 = data["weather"][0]
-    return {
+    sys_block = data.get("sys") or {}
+    sunrise = sys_block.get("sunrise")
+    sunset = sys_block.get("sunset")
+    out = {
         "temp": data["main"]["temp"],
         "description": w0["description"],
         "icon": w0["icon"],
@@ -31,6 +37,11 @@ def get_current_weather(api_key, city, units="metric", lang=None):
         "clouds": data["clouds"]["all"],  # pourcentage
         "hour": datetime.now().hour,
     }
+    if isinstance(sunrise, int):
+        out["sunrise"] = sunrise
+    if isinstance(sunset, int):
+        out["sunset"] = sunset
+    return out
 
 
 def get_forecast(api_key, city, hours=8, units="metric", lang=None):
