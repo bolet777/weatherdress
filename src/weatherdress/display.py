@@ -493,7 +493,7 @@ def draw_weather_text_block(
         column_left = right_x - max_w
 
         y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
-        y = max(4, min(y, uh - total_h - 8))
+        y = max(DISPLAY_TOP_SAFE_MARGIN + 4, min(y, uh - total_h - 8))
         y += _blit_temperature_with_icon(
             surface,
             "right",
@@ -518,7 +518,7 @@ def draw_weather_text_block(
     left_x = char_rect.right + gap_px
     left_x = max(0, min(left_x, screen_w - 72))
     y = int(float(layout["weather_top_pct"]) * uh) + v_off
-    y = max(4, min(y, uh - total_h - 8))
+    y = max(DISPLAY_TOP_SAFE_MARGIN + 4, min(y, uh - total_h - 8))
 
     y += _blit_temperature_with_icon(
         surface,
@@ -548,6 +548,9 @@ TIME_PILL_GAP = 10
 TIME_PILL_PAD_X = 18
 TIME_PILL_PAD_Y = 11
 TIME_PILL_BORDER_R = 12
+
+# Réserve verticale sous le bord haut : pilule horloge + marge (bloc météo / personnage)
+DISPLAY_TOP_SAFE_MARGIN = 12 + TIME_PILL_FONT_PX + 2 * TIME_PILL_PAD_Y
 
 
 def _draw_simple_clock_icon(surface, center, radius, color, line_width):
@@ -605,6 +608,28 @@ def draw_time_pill(surface, screen_w, top_margin=12):
     out_h = max(1, round(h_hi / s))
     pill = pygame.transform.smoothscale(pill_hi, (out_w, out_h))
     surface.blit(pill, pill.get_rect(midtop=(screen_w // 2, top_margin)))
+
+
+def _place_character_rect(
+    char_rect,
+    *,
+    char_center_x,
+    char_y_fallback,
+    transit_bottom,
+    screen_h,
+):
+    """Position verticale du sprite ; avec transit, pieds vers le bas des cartes (sans clip haut)."""
+    if transit_bottom is not None:
+        char_rect.midbottom = (
+            char_center_x,
+            min(int(transit_bottom), screen_h - 4),
+        )
+    else:
+        char_rect.centery = char_y_fallback
+    if char_rect.top < DISPLAY_TOP_SAFE_MARGIN:
+        char_rect.top = DISPLAY_TOP_SAFE_MARGIN
+    if char_rect.bottom > screen_h - 4:
+        char_rect.bottom = screen_h - 4
 
 
 def _transit_blit_card_shadow(screen, rect, br):
@@ -921,6 +946,8 @@ def render(
     else:
         screen.fill(background_color(config))
 
+    draw_time_pill(screen, screen_w)
+
     use_photo_background = bg_surf is not None
     use_circle = not use_photo_background
 
@@ -937,7 +964,8 @@ def render(
 
     chars_dir = os.path.join(images_dir, "characters")
     char_path = character_assets.resolve_character_png(chars_dir, outfit["character"])
-    char_img = load_image(char_path) if char_path else None
+    char_img_src = load_image(char_path) if char_path else None
+    char_img = None
 
     layout = layout_config.effective_layout(config)
     char_center_x = int(screen_w * float(layout["character_center_x_pct"]))
@@ -945,8 +973,8 @@ def render(
     char_max_h = int(usable_h * float(layout["character_max_height_pct"]))
     char_max_w = int(screen_w * float(layout["character_max_width_pct"]))
 
-    if char_img:
-        char_img = fit_image(char_img, char_max_w, char_max_h)
+    if char_img_src:
+        char_img = fit_image(char_img_src, char_max_w, char_max_h)
         char_img = apply_character_colorkey(char_img, config)
         char_rect = char_img.get_rect()
         char_rect.centerx = char_center_x
@@ -988,10 +1016,21 @@ def render(
             screen_h, transit_start_y, rows, row_stride
         )
 
-    if transit_bottom is not None:
-        char_rect.midbottom = (char_center_x, transit_bottom)
-    else:
-        char_rect.centery = char_y_fallback
+    if transit_bottom is not None and char_img_src:
+        max_h = max(80, int(transit_bottom) - DISPLAY_TOP_SAFE_MARGIN - 8)
+        if char_rect.height > max_h:
+            char_img = fit_image(char_img_src, char_max_w, max_h)
+            char_img = apply_character_colorkey(char_img, config)
+            char_rect = char_img.get_rect()
+            char_rect.centerx = char_center_x
+
+    _place_character_rect(
+        char_rect,
+        char_center_x=char_center_x,
+        char_y_fallback=char_y_fallback,
+        transit_bottom=transit_bottom,
+        screen_h=screen_h,
+    )
 
     if char_img:
         screen.blit(char_img, char_rect)
@@ -1032,8 +1071,6 @@ def render(
             bg_surf=bg_surf,
             transit_phase_t=transit_phase_t,
         )
-
-    draw_time_pill(screen, screen_w)
 
     pygame.display.flip()
 
