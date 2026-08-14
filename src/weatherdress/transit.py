@@ -185,9 +185,13 @@ class TransitFetcher:
         """GTFS-RT trip updates : {stop_id: {route, label, minutes}}."""
         key = (self.config.get("stm_api_key") or "").strip()
         if not key or key.upper().startswith("VOTRE_"):
+            print(
+                "[transit] Bus : stm_api_key absente ou placeholder — horaires bus ignorés."
+            )
             return {}
         bus_stops = self.config.get("bus_stops") or {}
         if not bus_stops:
+            print("[transit] Bus : aucun arrêt dans transit.bus_stops.")
             return {}
         stop_ids = {str(k) for k in bus_stops.keys()}
         try:
@@ -243,7 +247,21 @@ class TransitFetcher:
 
             for sid in result:
                 result[sid]["minutes"].sort()
-                result[sid]["minutes"] = result[sid]["minutes"][:2]
+                result[sid]["minutes"] = [
+                    m for m in result[sid]["minutes"] if m > 0
+                ][:2]
+
+            result = {sid: data for sid, data in result.items() if data["minutes"]}
+
+            if result:
+                print(
+                    f"[transit] Bus : {len(result)} arrêt(s) avec prochains passages."
+                )
+            else:
+                print(
+                    "[transit] Bus : flux reçu, aucun passage imminent pour les "
+                    f"arrêts {', '.join(sorted(stop_ids))}."
+                )
 
             return result
         except Exception as e:

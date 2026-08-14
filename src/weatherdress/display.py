@@ -618,14 +618,14 @@ def _place_character_rect(
     transit_bottom,
     screen_h,
 ):
-    """Position verticale du sprite ; avec transit, pieds vers le bas des cartes (sans clip haut)."""
+    """Position verticale du sprite ; pieds sur le transit seulement si le sprite tient en hauteur."""
+    char_rect.centery = char_y_fallback
     if transit_bottom is not None:
-        char_rect.midbottom = (
-            char_center_x,
-            min(int(transit_bottom), screen_h - 4),
-        )
-    else:
-        char_rect.centery = char_y_fallback
+        feet_y = min(int(transit_bottom), screen_h - 4)
+        trial = char_rect.copy()
+        trial.midbottom = (char_center_x, feet_y)
+        if trial.top >= DISPLAY_TOP_SAFE_MARGIN:
+            char_rect.midbottom = (char_center_x, feet_y)
     if char_rect.top < DISPLAY_TOP_SAFE_MARGIN:
         char_rect.top = DISPLAY_TOP_SAFE_MARGIN
     if char_rect.bottom > screen_h - 4:
@@ -1015,14 +1015,6 @@ def render(
         transit_bottom = transit_panel_last_visible_card_bottom(
             screen_h, transit_start_y, rows, row_stride
         )
-
-    if transit_bottom is not None and char_img_src:
-        max_h = max(80, int(transit_bottom) - DISPLAY_TOP_SAFE_MARGIN - 8)
-        if char_rect.height > max_h:
-            char_img = fit_image(char_img_src, char_max_w, max_h)
-            char_img = apply_character_colorkey(char_img, config)
-            char_rect = char_img.get_rect()
-            char_rect.centerx = char_center_x
 
     _place_character_rect(
         char_rect,

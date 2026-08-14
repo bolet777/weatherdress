@@ -135,7 +135,7 @@ def main():
     transit_data = {"bus": {}, "metro": {}}
     last_transit_refresh = 0.0
     transit_refresh_secs = 30
-    if not debug_preview_mode and transit_module.transit_config_enabled(config):
+    if transit_module.transit_config_enabled(config):
         transit_fetcher = transit_module.TransitFetcher(config)
         transit_refresh_secs = int(
             config.get("transit", {}).get("transit_refresh_seconds", 30)
@@ -164,8 +164,7 @@ def main():
 
         now = time.time()
         if (
-            not debug_preview_mode
-            and transit_fetcher
+            transit_fetcher
             and transit_state["ready"]
         ):
             transit_due = (last_transit_refresh == 0.0) or (
@@ -219,9 +218,7 @@ def main():
                 last_refresh = now - refresh_interval + 300
 
         transit_for_render = None
-        if not debug_preview_mode and transit_module.transit_config_enabled(
-            config
-        ):
+        if transit_module.transit_config_enabled(config) and transit_state["ready"]:
             transit_for_render = transit_data
 
         if current_outfit and current_weather_data:
