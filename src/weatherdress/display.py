@@ -891,8 +891,7 @@ def render(
     *,
     transit_phase_t=0.0,
 ):
-    screen_w = config["screen_width"]
-    screen_h = config["screen_height"]
+    screen_w, screen_h = screen.get_size()
     usable_h = max(120, screen_h - transit_panel_reserved_height(config))
 
     bg_surf = None
@@ -1041,8 +1040,7 @@ def render(
 
 def render_status(screen, config, lines):
     """Écran d’attente ou d’erreur (ex. clé API invalide) quand la météo n’est pas encore affichable."""
-    screen_w = config["screen_width"]
-    screen_h = config["screen_height"]
+    screen_w, screen_h = screen.get_size()
     screen.fill(background_color(config))
     font = pygame.font.SysFont("sans-serif", 20)
     y = max(40, screen_h // 2 - len(lines) * 16)

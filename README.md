@@ -192,8 +192,8 @@ make test
 | `city`             | Ville (ex: `"Montreal,CA"`)                      |
 | `language`         | Optionnel : défaut **`fr`**. Interface + paramètre `lang` OpenWeatherMap (`"en"`, `"de"`, … — voir `locale/` et [codes API](https://openweathermap.org/current#multi)) |
 | `units`            | `"metric"` (Celsius) ou `"imperial"`             |
-| `screen_width`     | Largeur écran en pixels                          |
-| `screen_height`    | Hauteur écran en pixels                          |
+| `screen_width`     | Largeur fenêtre en pixels (`fullscreen`: false)  |
+| `screen_height`    | Hauteur fenêtre en pixels ; en plein écran, résolution native du moniteur |
 | `refresh_minutes`  | Intervalle de rafraîchissement météo             |
 | `forecast_hours`   | Horizon de prévision pour les accessoires futurs |
 | `forecast_step_hours` | Granularité des tranches (3h sur l'API gratuite) |

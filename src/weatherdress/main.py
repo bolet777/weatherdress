@@ -92,18 +92,26 @@ def _set_window_icon(max_side=128):
         print(f"[app] Icône fenêtre non chargée ({path}) : {e}")
 
 
+def _open_display(config):
+    """
+    Plein écran : résolution native du moniteur (Pygame 0×0 + FULLSCREEN).
+    Fenêtre : screen_width / screen_height dans config.json.
+    """
+    fullscreen = config.get("fullscreen", True)
+    pygame.mouse.set_visible(not fullscreen)
+    if fullscreen:
+        return pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    w = int(config.get("screen_width", 800))
+    h = int(config.get("screen_height", 480))
+    return pygame.display.set_mode((w, h))
+
+
 def main():
     config = load_config()
     _prepare_app_desktop_name(config)
 
     pygame.init()
-    fullscreen = config.get("fullscreen", True)
-    pygame.mouse.set_visible(not fullscreen)
-
-    flags = pygame.FULLSCREEN if fullscreen else 0
-    screen = pygame.display.set_mode(
-        (config["screen_width"], config["screen_height"]), flags
-    )
+    screen = _open_display(config)
     pygame.display.set_caption(i18n.t(config, "window_title"))
     _set_window_icon()
 
