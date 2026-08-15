@@ -104,10 +104,10 @@ Exemples : `cold_woman1.png`, `normal_man1.png`, `snow_woman1.png`
 |------------------|------------------------------------------|
 | `umbrella.png`   | Pluie (mm > 0 ou codes OWM pluie/bruine/orage), sans neige |
 | `sun_screen.png` | Ciel sec, clair (`clouds` < 20), de jour (6–19 h ou lever/coucher) |
-| `sunglasses.png` | Ciel sec, de jour, peu nuageux (`clouds` < 30) |
+| `sunglasses.png` | Ciel sec, 6h–17h, ciel clair (`clouds` < 20), pas nuageux/couvert (≥ 40 %, codes 803/804, icône 04) |
 | `beanie.png`     | Neige (`snow` > 0) ou froid (`temp` < 7°C) |
-| `hat.png`        | Ciel sec, de jour 7h–19h : ciel clair (`clouds` < 20) ou forte chaleur (`temp` ≥ 28°C) si `clouds` < 30 |
-| `cap.png`        | Ciel sec, de jour 9h–19h, `clouds` < 30 et `temp` < 28°C |
+| `hat.png`        | Ciel sec, 7h–17h : ciel clair (`clouds` < 20) ou forte chaleur (`temp` ≥ 28°C) si `clouds` < 30 |
+| `cap.png`        | Ciel sec, 9h–17h, légèrement nuageux (`clouds` 20–29) et `temp` < 28°C |
 | `boots.png`      | Neige : `snow` > 0                       |
 | `rain_boots.png` | Pluie forte : > 3 mm/h (actuel 1 h ; prévision 3 h ÷ 3), sans neige |
 | `crampons.png`   | Code **511** ; ou pluie (mm ou code) sans neige et `temp` ≤ 2°C |
@@ -129,6 +129,28 @@ bash scripts/install.sh
 ```
 
 Le service démarre automatiquement au boot. Le unit systemd est **généré** à partir de `packaging/weatherdress.service.in` avec le répertoire courant du clone (`WorkingDirectory`, `PYTHONPATH=…/src`), l’utilisateur graphique (`User`, `XAUTHORITY`) et `python3 -m weatherdress.main`. Lancer l’installation **depuis le répertoire du clone** (après `cd` dans ce dossier). En général : `sudo bash scripts/install.sh` depuis le compte qui possède le clone (ex. `weather`) — `SUDO_USER` sert alors à remplir `User=`. Si vous installez en root sans `SUDO_USER`, définir explicitement `WEATHERDRESS_USER=weather` (ou l’utilisateur qui lance la session X11).
+
+**Le service `weatherdress` ne fait pas de `git pull`.** Il lance uniquement l’application (`python3 -m weatherdress.main`), redémarre en cas de crash (`Restart=on-failure`) et repart au boot. Aucun timer ni cron n’est installé par `install.sh` : le dépôt sur le Pi **ne se met pas à jour tout seul** tant que vous n’avez pas choisi une des options ci‑dessous.
+
+### Mettre à jour le code sur le Pi
+
+| Méthode | Quand l’utiliser |
+|--------|-------------------|
+| **`make deploy`** depuis le Mac | Vous poussez sur `main` et vous déployez à la demande (SSH → `scripts/launch.sh`). |
+| **`bash scripts/launch.sh`** sur le Pi | Même chose qu’un deploy, en SSH ou sur la console du Pi (dans le clone : `git pull origin main` + restart). |
+| **`bash scripts/gitsync.sh`** sur le Pi | Sync **automatique** seulement si **vous** planifiez le script (cron, timer systemd, etc.) — voir ci‑dessous. |
+
+`gitsync.sh` se contente d’aller dans le clone (`~/weatherdress` par défaut, ou `WEATHERDRESS_REPO`) puis d’appeler `launch.sh`. Il n’est **pas** exécuté par le service `weatherdress`.
+
+Exemple cron sur le compte qui possède le clone (adapter le chemin utilisateur) :
+
+```bash
+crontab -e
+# toutes les 6 heures :
+0 */6 * * * /home/weather/weatherdress/scripts/gitsync.sh >>/home/weather/weatherdress-gitsync.log 2>&1
+```
+
+En cron, `sudo systemctl restart weatherdress` exige en général une règle **sudoers** sans mot de passe pour cette commande, faute de quoi le pull réussit mais le restart échoue.
 
 ### Mise à jour d’un Pi déjà configuré (après `git pull`)
 
@@ -158,7 +180,7 @@ Si les journaux mentionnent `XDG_RUNTIME_DIR is invalid or not set` : le service
 make deploy HOST=weather@weatherdress.local
 ```
 
-Connexion SSH au Pi, exécution de `~/weatherdress/scripts/launch.sh` : `git pull origin main` puis redémarrage du service systemd.
+Connexion SSH au Pi, exécution de `~/weatherdress/scripts/launch.sh` : `git pull origin main` puis redémarrage du service systemd. Pour un Pi qui se met à jour sans Mac, voir **`scripts/gitsync.sh`** et la section « Mettre à jour le code sur le Pi ».
 
 `weather.local` est un **exemple** : il faut le nom mDNS réel du Pi (souvent `raspberrypi.local` si inchangé) ou, si macOS n’arrive pas à résoudre `*.local` (`Could not resolve hostname`), l’**adresse IP** du Pi sur le LAN, par ex. `make deploy HOST=weather@192.168.1.42`.
 
@@ -230,6 +252,7 @@ weatherdress/
 │   ├── install.sh       # setup Pi (dépendances + service systemd)
 │   ├── uninstall.sh     # suppression du service sur le Pi
 │   ├── launch.sh        # sur le Pi : git pull + restart systemd
+│   ├── gitsync.sh       # sur le Pi : wrapper vers launch.sh (ex. cron)
 │   └── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
 ├── packaging/
 │   └── weatherdress.service.in   # modèle ; le .service installé est généré par install.sh

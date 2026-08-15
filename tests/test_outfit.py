@@ -71,8 +71,29 @@ def test_accessories_no_sun_items_when_raining():
 
 
 def test_accessories_sunglasses():
-    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 25, "hour": 12, "temp": 22}
+    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 15, "hour": 12, "temp": 22}
     assert "sunglasses" in active_accessories(w)
+
+
+def test_accessories_no_sunglasses_partly_cloudy_midday():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 25, "hour": 12, "temp": 22}
+    assert "sunglasses" not in active_accessories(w)
+
+
+def test_accessories_no_sun_gear_evening_cloudy():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 25,
+        "hour": 18,
+        "temp": 22,
+        "condition_id": 803,
+        "icon": "04d",
+    }
+    acc = active_accessories(w)
+    assert "sunglasses" not in acc
+    assert "cap" not in acc
 
 
 def test_accessories_sunglasses_clear_sky_alongside_sun_screen():

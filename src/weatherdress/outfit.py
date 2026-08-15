@@ -76,6 +76,36 @@ def _is_raining(w):
     return _owm_is_liquid_rain_code(_condition_id_int(w))
 
 
+def _cloud_cover_pct(w):
+    try:
+        return int(w.get("clouds", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _owm_is_overcast_code(condition_id):
+    """OWM 803 (nuageux) / 804 (couvert)."""
+    return condition_id in (803, 804)
+
+
+def _icon_implies_overcast(w):
+    icon = str(w.get("icon") or "")
+    return icon.startswith("04")
+
+
+def _is_significantly_cloudy(w):
+    """
+    Temps nuageux ou couvert : pas de lunettes / casquette soleil.
+    S'appuie sur le code OWM, l'icône et le pourcentage de nuages.
+    """
+    cid = _condition_id_int(w)
+    if _owm_is_overcast_code(cid):
+        return True
+    if _icon_implies_overcast(w):
+        return True
+    return _cloud_cover_pct(w) >= 40
+
+
 def _is_dry_sunny_weather(w):
     """Ciel sec : pas de pluie signalée (accessoires soleil / tête ensoleillée)."""
     return not _is_raining(w)
@@ -103,9 +133,14 @@ def _is_reasonable_daylight(w):
 
 
 def _is_sun_protection_time(w):
-    """Fenêtre tête soleil (casquette / chapeau ciel clair), alignée sur la fin de journée utile."""
+    """Fenêtre tête soleil : milieu de journée (pas en fin de soirée)."""
     h = _local_hour(w)
-    return _is_reasonable_daylight(w) and 7 <= h <= 19
+    return _is_reasonable_daylight(w) and 7 <= h <= 17
+
+
+def _is_sunglasses_time(w):
+    h = _local_hour(w)
+    return _is_reasonable_daylight(w) and 6 <= h <= 17
 
 
 ACCESSORY_RULES = [
@@ -118,7 +153,8 @@ ACCESSORY_RULES = [
         "id": "sun_screen",
         "predicate": lambda w: (
             _is_dry_sunny_weather(w)
-            and w["clouds"] < 20
+            and not _is_significantly_cloudy(w)
+            and _cloud_cover_pct(w) < 20
             and _is_reasonable_daylight(w)
         ),
         "badge_offset": (0.42, 0.12),
@@ -128,8 +164,9 @@ ACCESSORY_RULES = [
         "slot": "sun",
         "predicate": lambda w: (
             _is_dry_sunny_weather(w)
-            and _is_reasonable_daylight(w)
-            and w["clouds"] < 30
+            and not _is_significantly_cloudy(w)
+            and _is_sunglasses_time(w)
+            and _cloud_cover_pct(w) < 20
         ),
         "badge_offset": (0.5, 0.1),
     },
@@ -144,10 +181,11 @@ ACCESSORY_RULES = [
         "slot": "head",
         "predicate": lambda w: (
             _is_dry_sunny_weather(w)
+            and not _is_significantly_cloudy(w)
             and _is_sun_protection_time(w)
             and (
-                (w["clouds"] < 20 and 7 <= _local_hour(w) <= 19)
-                or (w["temp"] >= 28 and w["clouds"] < 30)
+                (_cloud_cover_pct(w) < 20 and 7 <= _local_hour(w) <= 17)
+                or (w["temp"] >= 28 and _cloud_cover_pct(w) < 30)
             )
         ),
         "badge_offset": (0.5, 0.05),
@@ -157,9 +195,10 @@ ACCESSORY_RULES = [
         "slot": "head",
         "predicate": lambda w: (
             _is_dry_sunny_weather(w)
+            and not _is_significantly_cloudy(w)
             and _is_sun_protection_time(w)
-            and w["clouds"] < 30
-            and 9 <= _local_hour(w) <= 19
+            and 20 <= _cloud_cover_pct(w) < 30
+            and 9 <= _local_hour(w) <= 17
             and w["temp"] < 28
         ),
         "badge_offset": (0.48, 0.07),
