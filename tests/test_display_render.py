@@ -49,6 +49,55 @@ def test_display_top_safe_margin_grows_with_screen():
     assert large > small
 
 
+def test_transit_max_rows_allows_bus_and_metro_when_anchored_on_feet():
+    row_stride = display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
+    char_rect = pygame.Rect(0, 0, 120, 380)
+    char_rect.midbottom = (240, 476)
+    two_rows = [
+        ("bus", "Bus 161", "St-Michel", [15, 27], (0, 0, 0)),
+        ("metro", "Station Outremont", "Direction Snowdon", [], (0, 0, 0)),
+    ]
+    start_y = display.resolve_transit_panel_start_y(
+        char_rect, two_rows, row_stride, 480
+    )
+    assert start_y is not None
+    max_rows = display.transit_max_rows_from_start_y(480, start_y, row_stride)
+    assert max_rows >= 2
+    bottom = start_y + display.transit_panel_content_height(two_rows, row_stride)
+    assert bottom <= char_rect.bottom
+
+
+def test_transit_panel_build_rows_keeps_metro_when_start_y_is_low():
+    row_stride = display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
+    char_rect = pygame.Rect(0, 0, 120, 380)
+    char_rect.midbottom = (240, 476)
+    two_rows = [
+        ("bus", "Bus 161", "St-Michel", [15, 27], (0, 0, 0)),
+        ("metro", "Station Outremont", "Direction Snowdon", [], (0, 0, 0)),
+    ]
+    start_y = display.resolve_transit_panel_start_y(
+        char_rect, two_rows, row_stride, 480
+    )
+    cfg = {
+        "transit": {
+            "stm_api_key": "k",
+            "gtfs_url": "https://example.com/gtfs.zip",
+            "bus_stops": {"1": "St-Michel"},
+            "metro_station": "Outremont",
+            "metro_directions": {"Snowdon": "Snowdon"},
+        }
+    }
+    data = {
+        "bus": {"1": {"route": "161", "label": "St-Michel", "minutes": [15, 27]}},
+        "metro": {"Snowdon": []},
+    }
+    rows, stride = display._transit_panel_build_rows(
+        data, cfg, screen_h=480, start_y=start_y, transit_phase_t=0.0
+    )
+    assert len(rows) == 2
+    assert rows[1][0] == "metro"
+
+
 def test_render_future_accessories_column_runs_without_crash(tmp_path, monkeypatch):
     """Exerce accessoires futurs (colonne + pastilles heure)."""
     monkeypatch.setattr(pygame.display, "flip", lambda: None)

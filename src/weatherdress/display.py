@@ -503,6 +503,17 @@ def transit_panel_content_height(rows, row_stride):
     return (n - 1) * row_stride + TRANSIT_CARD_HEIGHT
 
 
+def transit_max_rows_from_start_y(screen_h, start_y, row_stride):
+    """
+    Nombre de cartes entières entre start_y et le bas de l’écran.
+    La dernière carte n’occupe que TRANSIT_CARD_HEIGHT (pas un stride complet).
+    """
+    avail = (screen_h - 4) - int(start_y)
+    if avail < TRANSIT_CARD_HEIGHT:
+        return 0
+    return 1 + (avail - TRANSIT_CARD_HEIGHT) // row_stride
+
+
 def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
     """
     Ancre le bas des cartes transport sur les pieds du personnage.
@@ -791,7 +802,9 @@ def _transit_panel_build_rows(
     metro_directions = transit_config.get("metro_directions", {}) or {}
 
     row_stride = TRANSIT_CARD_HEIGHT + TRANSIT_CARD_GAP
-    max_rows = max(1, (screen_h - 8 - int(start_y)) // row_stride)
+    max_rows = transit_max_rows_from_start_y(screen_h, start_y, row_stride)
+    if max_rows < 1:
+        return [], row_stride
 
     bus_rows: list[tuple] = []
     for sid, data in sorted(transit_data.get("bus", {}).items(), key=lambda x: x[0]):
