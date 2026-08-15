@@ -1,6 +1,10 @@
 import datetime
 
-from weatherdress.transit import transit_config_enabled, weekday_column_for_date
+from weatherdress.transit import (
+    resolve_stm_api_key,
+    transit_config_enabled,
+    weekday_column_for_date,
+)
 
 
 def test_weekday_column_monday():
@@ -34,3 +38,22 @@ def test_transit_config_enabled_requires_keys():
             }
         }
     )
+
+
+def test_resolve_stm_api_key_from_config():
+    key, err = resolve_stm_api_key({"stm_api_key": "abc123"})
+    assert key == "abc123"
+    assert err is None
+
+
+def test_resolve_stm_api_key_rejects_placeholder():
+    key, err = resolve_stm_api_key({"stm_api_key": "VOTRE_CLE_API_STM_ICI"})
+    assert key == ""
+    assert err and "placeholder" in err
+
+
+def test_resolve_stm_api_key_env(monkeypatch):
+    monkeypatch.setenv("STM_API_KEY", "from-env")
+    key, err = resolve_stm_api_key({"stm_api_key": "ignored"})
+    assert key == "from-env"
+    assert err is None

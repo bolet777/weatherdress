@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 import time
 import zipfile
 from datetime import date, datetime
@@ -48,6 +49,41 @@ def _parse_departure_seconds(departure_time: str) -> int:
         raise ValueError(departure_time)
     h, m, s = (int(parts[0]), int(parts[1]), int(parts[2]))
     return h * 3600 + m * 60 + s
+
+
+def _is_stm_api_key_placeholder(key: str) -> bool:
+    k = key.strip().upper()
+    return not k or k.startswith("VOTRE_")
+
+
+def resolve_stm_api_key(transit_config: dict) -> tuple[str, str | None]:
+    """
+    Clé API STM pour GTFS-RT bus.
+    Ordre : variable d'environnement ``STM_API_KEY``, puis ``transit.stm_api_key``.
+    Retourne (clé, message d'erreur console) ; clé vide si indisponible.
+    """
+    from_env = (os.environ.get("STM_API_KEY") or "").strip()
+    if from_env and not _is_stm_api_key_placeholder(from_env):
+        return from_env, None
+
+    from_cfg = (transit_config.get("stm_api_key") or "").strip()
+    if from_cfg and not _is_stm_api_key_placeholder(from_cfg):
+        return from_cfg, None
+
+    if from_env and _is_stm_api_key_placeholder(from_env):
+        return "", (
+            "[transit] Bus : STM_API_KEY est vide ou placeholder — horaires bus ignorés."
+        )
+    if from_cfg and _is_stm_api_key_placeholder(from_cfg):
+        return "", (
+            "[transit] Bus : transit.stm_api_key est encore le placeholder du "
+            "config.example.json — renseigner la clé STM (GTFS-RT trip updates) "
+            "sur le Pi dans config.json, ou définir STM_API_KEY."
+        )
+    return "", (
+        "[transit] Bus : aucune clé STM (transit.stm_api_key dans config.json "
+        "ou variable STM_API_KEY) — horaires bus ignorés."
+    )
 
 
 class TransitFetcher:
@@ -183,11 +219,9 @@ class TransitFetcher:
 
     def get_bus_departures(self) -> dict[str, dict]:
         """GTFS-RT trip updates : {stop_id: {route, label, minutes}}."""
-        key = (self.config.get("stm_api_key") or "").strip()
-        if not key or key.upper().startswith("VOTRE_"):
-            print(
-                "[transit] Bus : stm_api_key absente ou placeholder — horaires bus ignorés."
-            )
+        key, err = resolve_stm_api_key(self.config)
+        if err:
+            print(err)
             return {}
         bus_stops = self.config.get("bus_stops") or {}
         if not bus_stops:
