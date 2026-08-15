@@ -79,6 +79,7 @@ def get_forecast(api_key, city, hours=8, units="metric", lang=None):
             "temp": item["main"]["temp"],
             "description": item["weather"][0]["description"],
             "icon": item["weather"][0]["icon"],
+            "condition_id": item["weather"][0]["id"],
             "wind_kmh": item["wind"]["speed"] * 3.6,
             "rain": item.get("rain", {}).get("3h", 0),
             "snow": item.get("snow", {}).get("3h", 0),

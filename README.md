@@ -102,16 +102,16 @@ Exemples : `cold_woman1.png`, `normal_man1.png`, `snow_woman1.png`
 
 | Fichier          | Déclencheur                              |
 |------------------|------------------------------------------|
-| `umbrella.png`   | Pluie prévue                             |
-| `sun_screen.png` | Ciel clair (`clouds` < 20) de jour (lever/coucher ou heure 6–19) |
-| `sunglasses.png` | De jour (6–19 h, lever/coucher si dispo), ciel peu nuageux (`clouds` < 30) |
+| `umbrella.png`   | Pluie (mm > 0 ou codes OWM pluie/bruine/orage), sans neige |
+| `sun_screen.png` | Ciel sec, clair (`clouds` < 20), de jour (6–19 h ou lever/coucher) |
+| `sunglasses.png` | Ciel sec, de jour, peu nuageux (`clouds` < 30) |
 | `beanie.png`     | Neige (`snow` > 0) ou froid (`temp` < 7°C) |
-| `hat.png`        | De jour : ciel clair (`clouds` < 20) 7h–17h, ou forte chaleur (`temp` ≥ 28°C) si `clouds` < 30 |
-| `cap.png`        | De jour 9h–17h, un peu nuageux (`clouds` 20–29) et `temp` < 28°C |
+| `hat.png`        | Ciel sec, de jour 7h–19h : ciel clair (`clouds` < 20) ou forte chaleur (`temp` ≥ 28°C) si `clouds` < 30 |
+| `cap.png`        | Ciel sec, de jour 9h–19h, `clouds` < 30 et `temp` < 28°C |
 | `boots.png`      | Neige : `snow` > 0                       |
-| `rain_boots.png` | Pluie : `rain` > 3, sans neige         |
-| `crampons.png`   | Glace : code OWM **511** (pluie verglaçante, même si `snow` > 0) ; ou sans neige et `rain` > 0 et `temp` ≤ 2°C |
-| `scarf.png`      | Temp < 5°C ou vent > 30 km/h            |
+| `rain_boots.png` | Pluie forte : > 3 mm/h (actuel 1 h ; prévision 3 h ÷ 3), sans neige |
+| `crampons.png`   | Code **511** ; ou pluie (mm ou code) sans neige et `temp` ≤ 2°C |
+| `scarf.png`      | `temp` < 5°C, ou vent > 30 km/h avec `temp` ≤ 18°C |
 
 Les images doivent être en PNG avec transparence (canal alpha).
 Elles sont superposées sur le personnage — prévoir un fond transparent.

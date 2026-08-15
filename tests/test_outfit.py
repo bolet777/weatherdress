@@ -35,6 +35,41 @@ def test_accessories_rain():
     assert "umbrella" in active_accessories(w)
 
 
+def test_accessories_umbrella_by_condition_without_mm():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 10,
+        "clouds": 80,
+        "hour": 12,
+        "temp": 15,
+        "condition_id": 500,
+    }
+    assert "umbrella" in active_accessories(w)
+
+
+def test_accessories_no_umbrella_when_snow():
+    w = {"rain": 2, "snow": 1, "wind_kmh": 10, "clouds": 80, "hour": 12, "temp": -2}
+    assert "umbrella" not in active_accessories(w)
+
+
+def test_accessories_no_sun_items_when_raining():
+    w = {
+        "rain": 0.5,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 10,
+        "hour": 12,
+        "temp": 24,
+    }
+    acc = active_accessories(w)
+    assert "umbrella" in acc
+    assert "sunglasses" not in acc
+    assert "sun_screen" not in acc
+    assert "cap" not in acc
+    assert "hat" not in acc
+
+
 def test_accessories_sunglasses():
     w = {"rain": 0, "snow": 0, "wind_kmh": 5, "clouds": 25, "hour": 12, "temp": 22}
     assert "sunglasses" in active_accessories(w)
@@ -172,6 +207,11 @@ def test_accessories_scarf_wind():
     assert "scarf" in active_accessories(w)
 
 
+def test_accessories_no_scarf_wind_when_warm():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 40, "clouds": 50, "hour": 14, "temp": 26}
+    assert "scarf" not in active_accessories(w)
+
+
 def test_accessories_feet_snow_boots_not_rain_boots():
     w = {
         "rain": 0,
@@ -200,6 +240,34 @@ def test_accessories_feet_heavy_rain_rain_boots_not_snow_boots():
     assert "boots" not in acc
 
 
+def test_accessories_rain_boots_forecast_normalizes_3h_rain():
+    w = {
+        "rain": 12,
+        "snow": 0,
+        "wind_kmh": 12,
+        "clouds": 90,
+        "hour": 14,
+        "temp": 6,
+        "forecast_ts": 1_700_000_000,
+    }
+    assert "rain_boots" in active_accessories(w)
+
+
+def test_accessories_no_rain_boots_forecast_light_3h_rain():
+    w = {
+        "rain": 6,
+        "snow": 0,
+        "wind_kmh": 12,
+        "clouds": 90,
+        "hour": 14,
+        "temp": 6,
+        "forecast_ts": 1_700_000_000,
+    }
+    acc = active_accessories(w)
+    assert "rain_boots" not in acc
+    assert "umbrella" in acc
+
+
 def test_accessories_crampons_cold_rain_no_snow():
     w = {
         "rain": 0.5,
@@ -212,6 +280,20 @@ def test_accessories_crampons_cold_rain_no_snow():
     acc = active_accessories(w)
     assert "crampons" in acc
     assert "boots" not in acc
+
+
+def test_accessories_crampons_forecast_freezing_rain_code():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 10,
+        "clouds": 100,
+        "hour": 8,
+        "temp": -1,
+        "condition_id": 511,
+        "forecast_ts": 1_700_000_000,
+    }
+    assert "crampons" in active_accessories(w)
 
 
 def test_accessories_crampons_freezing_rain_condition_id():

@@ -37,6 +37,50 @@ def _weather_timestamp(w):
     return None
 
 
+def _is_forecast_slice(w):
+    return w.get("forecast_ts") is not None
+
+
+def _rain_mm(w):
+    try:
+        return float(w.get("rain") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _rain_rate_mmh(w):
+    """Pluie en mm/h : actuel = champ 1 h ; prévision 3 h → moyenne sur 3 h."""
+    r = _rain_mm(w)
+    if _is_forecast_slice(w):
+        return r / 3.0
+    return r
+
+
+def _owm_is_liquid_rain_code(condition_id):
+    """Codes OWM pluie / bruine / orage (hors neige)."""
+    if condition_id is None:
+        return False
+    return (
+        200 <= condition_id <= 232
+        or 300 <= condition_id <= 321
+        or 500 <= condition_id <= 531
+    )
+
+
+def _is_raining(w):
+    """Pluie liquide (mm ou code météo), pas en cas de neige dominante."""
+    if w.get("snow", 0) > 0:
+        return False
+    if _rain_mm(w) > 0:
+        return True
+    return _owm_is_liquid_rain_code(_condition_id_int(w))
+
+
+def _is_dry_sunny_weather(w):
+    """Ciel sec : pas de pluie signalée (accessoires soleil / tête ensoleillée)."""
+    return not _is_raining(w)
+
+
 def _is_reasonable_daylight(w):
     """
     Jour pour accessoires « soleil » : sunrise/sunset + horodatage si dispo,
@@ -58,21 +102,35 @@ def _is_reasonable_daylight(w):
     return 6 <= h <= 19
 
 
+def _is_sun_protection_time(w):
+    """Fenêtre tête soleil (casquette / chapeau ciel clair), alignée sur la fin de journée utile."""
+    h = _local_hour(w)
+    return _is_reasonable_daylight(w) and 7 <= h <= 19
+
+
 ACCESSORY_RULES = [
     {
         "id": "umbrella",
-        "predicate": lambda w: w["rain"] > 0,
+        "predicate": _is_raining,
         "badge_offset": (0.2, 0.8),
     },
     {
         "id": "sun_screen",
-        "predicate": lambda w: w["clouds"] < 20 and _is_reasonable_daylight(w),
+        "predicate": lambda w: (
+            _is_dry_sunny_weather(w)
+            and w["clouds"] < 20
+            and _is_reasonable_daylight(w)
+        ),
         "badge_offset": (0.42, 0.12),
     },
     {
         "id": "sunglasses",
         "slot": "sun",
-        "predicate": lambda w: _is_reasonable_daylight(w) and w["clouds"] < 30,
+        "predicate": lambda w: (
+            _is_dry_sunny_weather(w)
+            and _is_reasonable_daylight(w)
+            and w["clouds"] < 30
+        ),
         "badge_offset": (0.5, 0.1),
     },
     {
@@ -84,10 +142,13 @@ ACCESSORY_RULES = [
     {
         "id": "hat",
         "slot": "head",
-        "predicate": lambda w: _is_reasonable_daylight(w)
-        and (
-            (w["clouds"] < 20 and 7 <= _local_hour(w) <= 17)
-            or (w["temp"] >= 28 and w["clouds"] < 30)
+        "predicate": lambda w: (
+            _is_dry_sunny_weather(w)
+            and _is_sun_protection_time(w)
+            and (
+                (w["clouds"] < 20 and 7 <= _local_hour(w) <= 19)
+                or (w["temp"] >= 28 and w["clouds"] < 30)
+            )
         ),
         "badge_offset": (0.5, 0.05),
     },
@@ -95,9 +156,10 @@ ACCESSORY_RULES = [
         "id": "cap",
         "slot": "head",
         "predicate": lambda w: (
-            _is_reasonable_daylight(w)
+            _is_dry_sunny_weather(w)
+            and _is_sun_protection_time(w)
             and w["clouds"] < 30
-            and 9 <= _local_hour(w) <= 17
+            and 9 <= _local_hour(w) <= 19
             and w["temp"] < 28
         ),
         "badge_offset": (0.48, 0.07),
@@ -111,12 +173,13 @@ ACCESSORY_RULES = [
     {
         "id": "rain_boots",
         "slot": "feet",
-        "predicate": lambda w: w["rain"] > 3 and w["snow"] <= 0,
+        "predicate": lambda w: _rain_rate_mmh(w) > 3 and w["snow"] <= 0,
         "badge_offset": (0.76, 0.88),
     },
     {
         "id": "scarf",
-        "predicate": lambda w: w["temp"] < 5 or w["wind_kmh"] > 30,
+        "predicate": lambda w: w["temp"] < 5
+        or (w["wind_kmh"] > 30 and w["temp"] <= 18),
         "badge_offset": (0.6, 0.4),
     },
     {
@@ -124,7 +187,7 @@ ACCESSORY_RULES = [
         "predicate": lambda w: _condition_id_int(w) == 511
         or (
             w.get("snow", 0) <= 0
-            and w.get("rain", 0) > 0
+            and _is_raining(w)
             and w["temp"] <= 2
         ),
         "badge_offset": (0.62, 0.82),
