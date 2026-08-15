@@ -30,6 +30,25 @@ def _minimal_config():
     }
 
 
+def test_plan_right_column_vertical_layout_centers_on_character():
+    char_rect = pygame.Rect(0, 0, 100, 360)
+    char_rect.centery = 250
+    row_stride = display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
+    two_rows = [
+        ("bus", "Bus 1", "Stop", [], (0, 0, 0)),
+        ("metro", "Station X", "Direction Y", [], (0, 0, 0)),
+    ]
+    weather_h = 88
+    transit_h = display.transit_panel_content_height(two_rows, row_stride)
+    w_top, t_top = display.plan_right_column_vertical_layout(
+        char_rect, weather_h, transit_h, 480, 70, 0
+    )
+    total = weather_h + display.TRANSIT_AFTER_WEATHER_GAP + transit_h
+    block_center = w_top + total / 2.0
+    assert abs(block_center - char_rect.centery) < 1.5
+    assert t_top == w_top + weather_h + display.TRANSIT_AFTER_WEATHER_GAP
+
+
 def test_resolve_transit_panel_start_y_aligns_on_character_feet():
     char_rect = pygame.Rect(0, 0, 100, 400)
     char_rect.midbottom = (200, 460)

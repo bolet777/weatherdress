@@ -526,26 +526,39 @@ def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
     return feet_y - panel_h
 
 
-def draw_weather_text_block(
-    surface,
+def plan_right_column_vertical_layout(
+    char_rect,
+    weather_total_h,
+    transit_panel_h,
+    screen_h,
+    top_safe_px,
+    vertical_offset_px=0,
+):
+    """
+    Colonne droite (temp + desc + bus + métro) centrée verticalement sur le personnage.
+    Retourne (weather_top_y, transit_start_y ou None).
+    """
+    gap = TRANSIT_AFTER_WEATHER_GAP if transit_panel_h > 0 else 0
+    total = int(weather_total_h) + gap + int(transit_panel_h)
+    top = int(round(char_rect.centery - total / 2.0)) + int(vertical_offset_px)
+    max_top = screen_h - 4 - total
+    top = max(int(top_safe_px), min(top, max_top))
+    weather_top = top
+    transit_top = top + int(weather_total_h) + gap if transit_panel_h > 0 else None
+    return weather_top, transit_top
+
+
+def _weather_block_layout(
     config,
     current_weather,
-    outfit,
     screen_w,
     screen_h,
     use_photo_background,
     use_circle,
     char_rect,
     layout,
-    usable_screen_h=None,
-    *,
-    anchor_bottom_y=None,
-    top_safe_px=None,
 ):
-    """
-    Température + description : position selon layout (après personnage ou bord droit).
-    Retourne { "column_left", "bottom_y" } pour aligner le transport sur la même colonne.
-    """
+    """Mesures et métadonnées du bloc météo (sans dessin)."""
     deg = "°C" if config.get("units", "metric") == "metric" else "°F"
     temp_line = f"{current_weather['temp']:.0f}{deg}"
     desc_raw = current_weather.get("description") or ""
@@ -555,7 +568,6 @@ def draw_weather_text_block(
 
     color = _weather_block_text_color(config, use_photo_background, use_circle)
     use_shadow = use_photo_background
-    uh = usable_screen_h if usable_screen_h is not None else screen_h
 
     margin_right = max(
         16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
@@ -581,6 +593,7 @@ def draw_weather_text_block(
     mode = layout.get("weather_mode", "after_character")
     if mode == "screen_right":
         wrap_cols = max(12, min(22, screen_w // 38))
+        left_x = None
     else:
         gap_px = int(layout["weather_gap_after_character_px"])
         left_x = char_rect.right + gap_px
@@ -592,25 +605,17 @@ def draw_weather_text_block(
     if not desc_lines and desc:
         desc_lines = [desc]
 
-    gap_td = 8
+    gap_td = 10
     line_gap = 6
     temp_line_h = font_temp.get_height()
     icon_target_h = max(1, int(round(temp_line_h * WEATHER_ICON_HEIGHT_FACTOR)))
-    temp_h = (
-        max(temp_line_h, icon_target_h) if icon_path else temp_line_h
-    )
+    temp_h = max(temp_line_h, icon_target_h) if icon_path else temp_line_h
     if desc_lines:
         dh = font_desc.get_height()
         desc_block_h = len(desc_lines) * dh + max(0, len(desc_lines) - 1) * line_gap
     else:
         desc_block_h = 0
-    total_h = temp_h + gap_td + desc_block_h
-    v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
-    top_safe = (
-        int(top_safe_px)
-        if top_safe_px is not None
-        else display_top_safe_margin(screen_h) + 4
-    )
+    weather_total_h = temp_h + gap_td + desc_block_h
 
     if mode == "screen_right":
         temp_text_w = font_temp.size(temp_line)[0]
@@ -621,7 +626,82 @@ def draw_weather_text_block(
         for ln in desc_lines:
             max_w = max(max_w, font_desc.size(ln)[0])
         column_left = right_x - max_w
+    else:
+        column_left = left_x
 
+    return {
+        "mode": mode,
+        "temp_line": temp_line,
+        "desc_lines": desc_lines,
+        "font_temp": font_temp,
+        "font_desc": font_desc,
+        "color": color,
+        "use_shadow": use_shadow,
+        "icon_path": icon_path,
+        "left_x": left_x,
+        "right_x": right_x,
+        "column_left": column_left,
+        "gap_td": gap_td,
+        "line_gap": line_gap,
+        "weather_total_h": weather_total_h,
+    }
+
+
+def draw_weather_text_block(
+    surface,
+    config,
+    current_weather,
+    outfit,
+    screen_w,
+    screen_h,
+    use_photo_background,
+    use_circle,
+    char_rect,
+    layout,
+    usable_screen_h=None,
+    *,
+    block_top_y=None,
+    top_safe_px=None,
+    weather_prep=None,
+):
+    """
+    Température + description : position selon layout (après personnage ou bord droit).
+    Retourne { "column_left", "bottom_y" } pour aligner le transport sur la même colonne.
+    """
+    uh = usable_screen_h if usable_screen_h is not None else screen_h
+    prep = weather_prep or _weather_block_layout(
+        config,
+        current_weather,
+        screen_w,
+        screen_h,
+        use_photo_background,
+        use_circle,
+        char_rect,
+        layout,
+    )
+    mode = prep["mode"]
+    temp_line = prep["temp_line"]
+    desc_lines = prep["desc_lines"]
+    font_temp = prep["font_temp"]
+    font_desc = prep["font_desc"]
+    color = prep["color"]
+    use_shadow = prep["use_shadow"]
+    icon_path = prep["icon_path"]
+    left_x = prep["left_x"]
+    right_x = prep["right_x"]
+    column_left = prep["column_left"]
+    gap_td = prep["gap_td"]
+    line_gap = prep["line_gap"]
+    total_h = prep["weather_total_h"]
+
+    v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
+    top_safe = (
+        int(top_safe_px)
+        if top_safe_px is not None
+        else display_top_safe_margin(screen_h) + 4
+    )
+
+    if mode == "screen_right":
         y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
         y = max(top_safe, min(y, uh - total_h - 8))
         y += _blit_temperature_with_icon(
@@ -644,19 +724,9 @@ def draw_weather_text_block(
                 y += line_gap
         return {"column_left": column_left, "bottom_y": y}
 
-    gap_px = int(layout["weather_gap_after_character_px"])
-    left_x = char_rect.right + gap_px
-    left_x = max(0, min(left_x, screen_w - 72))
-    if anchor_bottom_y is not None:
-        zone_bottom = int(anchor_bottom_y) - TRANSIT_AFTER_WEATHER_GAP
-        free = zone_bottom - top_safe - total_h
-        if free > 48:
-            gap_td = max(gap_td, min(22, int(free * 0.08)))
-            total_h = temp_h + gap_td + desc_block_h
-            free = zone_bottom - top_safe - total_h
-        bias = max(0.0, min(1.0, float(layout.get("weather_top_pct", 0.18))))
-        y = top_safe + int(max(0, free) * bias) + v_off
-        y = max(top_safe, min(y, zone_bottom - total_h))
+    if block_top_y is not None:
+        y = int(block_top_y)
+        y = max(top_safe, min(y, screen_h - 4 - total_h))
     else:
         y = int(float(layout["weather_top_pct"]) * uh) + v_off
         y = max(top_safe, min(y, uh - total_h - 8))
@@ -679,7 +749,7 @@ def draw_weather_text_block(
         )
         if i < len(desc_lines) - 1:
             y += line_gap
-    return {"column_left": left_x, "bottom_y": y}
+    return {"column_left": column_left, "bottom_y": y}
 
 
 def _place_character_rect(
@@ -1065,18 +1135,62 @@ def render(
         16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
     )
 
+    weather_prep = _weather_block_layout(
+        config,
+        current_weather,
+        screen_w,
+        screen_h,
+        use_photo_background,
+        use_circle,
+        char_rect,
+        layout,
+    )
+
+    block_top_y = None
     transit_start_y = None
-    if transit_module.transit_config_enabled(config):
-        transit_rows, transit_row_stride = _transit_panel_build_rows(
-            transit_data,
-            config,
-            screen_h=screen_h,
-            start_y=0,
-            transit_phase_t=transit_phase_t,
+    v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
+    top_safe_weather = top_safe + 4
+
+    if layout.get("weather_mode", "after_character") == "after_character":
+        transit_panel_h = 0
+        transit_rows = []
+        transit_row_stride = TRANSIT_CARD_HEIGHT + TRANSIT_CARD_GAP
+        if transit_module.transit_config_enabled(config):
+            transit_rows, transit_row_stride = _transit_panel_build_rows(
+                transit_data,
+                config,
+                screen_h=screen_h,
+                start_y=0,
+                transit_phase_t=transit_phase_t,
+            )
+            transit_panel_h = transit_panel_content_height(
+                transit_rows, transit_row_stride
+            )
+        block_top_y, transit_start_y = plan_right_column_vertical_layout(
+            char_rect,
+            weather_prep["weather_total_h"],
+            transit_panel_h,
+            screen_h,
+            top_safe_weather,
+            v_off,
         )
-        transit_start_y = resolve_transit_panel_start_y(
-            char_rect, transit_rows, transit_row_stride, screen_h
-        )
+        if transit_start_y is not None:
+            max_rows = transit_max_rows_from_start_y(
+                screen_h, transit_start_y, transit_row_stride
+            )
+            if max_rows < len(transit_rows):
+                transit_rows = transit_rows[:max_rows]
+                transit_panel_h = transit_panel_content_height(
+                    transit_rows, transit_row_stride
+                )
+                block_top_y, transit_start_y = plan_right_column_vertical_layout(
+                    char_rect,
+                    weather_prep["weather_total_h"],
+                    transit_panel_h,
+                    screen_h,
+                    top_safe_weather,
+                    v_off,
+                )
 
     weather_layout = draw_weather_text_block(
         screen,
@@ -1090,8 +1204,9 @@ def render(
         char_rect,
         layout,
         usable_screen_h=usable_h,
-        anchor_bottom_y=transit_start_y,
-        top_safe_px=top_safe + 4,
+        block_top_y=block_top_y,
+        top_safe_px=top_safe_weather,
+        weather_prep=weather_prep,
     )
 
     if char_img:
