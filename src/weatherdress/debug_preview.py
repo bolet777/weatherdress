@@ -602,7 +602,7 @@ SCENARIOS: List[Dict[str, Any]] = [
         ],
     },
     {
-        "label": "Hot night — hat (cap/sun rules off)",
+        "label": "Hot night — no sun headwear (cap/hat/sunglasses off)",
         "weather": _w(
             temp=31,
             clouds=12,

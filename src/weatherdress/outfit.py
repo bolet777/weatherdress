@@ -17,30 +17,45 @@ def _condition_id_int(w):
         return None
 
 
+def _local_hour(w):
+    try:
+        return int(w.get("hour", 12))
+    except (TypeError, ValueError):
+        return 12
+
+
+def _weather_timestamp(w):
+    """Instant météo (actuel ou tranche prévision) pour lever/coucher."""
+    for key in ("forecast_ts", "now_ts"):
+        raw = w.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def _is_reasonable_daylight(w):
     """
-    Jour pour accessoires « soleil » : sunrise/sunset + now_ts si dispo (API current),
-    sinon repli heure locale 6–20 (prévisions / dicts sans now_ts).
+    Jour pour accessoires « soleil » : sunrise/sunset + horodatage si dispo,
+    sinon repli heure locale 6–19 (pas de lunettes/casquette/chapeau à partir de 20 h).
     """
-    now_ts = w.get("now_ts")
+    h = _local_hour(w)
+    if h >= 20 or h < 6:
+        return False
+
+    ts = _weather_timestamp(w)
     sr, ss = w.get("sunrise"), w.get("sunset")
     if (
-        now_ts is not None
+        ts is not None
         and isinstance(sr, int)
         and isinstance(ss, int)
         and ss > sr
     ):
-        try:
-            ts = float(now_ts)
-        except (TypeError, ValueError):
-            pass
-        else:
-            return sr <= ts <= ss
-    try:
-        h = int(w.get("hour", 12))
-    except (TypeError, ValueError):
-        h = 12
-    return 6 <= h <= 20
+        return sr <= ts <= ss
+    return 6 <= h <= 19
 
 
 ACCESSORY_RULES = [
@@ -57,8 +72,7 @@ ACCESSORY_RULES = [
     {
         "id": "sunglasses",
         "slot": "sun",
-        "predicate": lambda w: _is_reasonable_daylight(w)
-        and (w["clouds"] < 30 or w["temp"] >= 28),
+        "predicate": lambda w: _is_reasonable_daylight(w) and w["clouds"] < 30,
         "badge_offset": (0.5, 0.1),
     },
     {
@@ -70,8 +84,10 @@ ACCESSORY_RULES = [
     {
         "id": "hat",
         "slot": "head",
-        "predicate": lambda w: (
-            (w["clouds"] < 20 and 7 <= w["hour"] <= 17) or w["temp"] >= 28
+        "predicate": lambda w: _is_reasonable_daylight(w)
+        and (
+            (w["clouds"] < 20 and 7 <= _local_hour(w) <= 17)
+            or (w["temp"] >= 28 and w["clouds"] < 30)
         ),
         "badge_offset": (0.5, 0.05),
     },
@@ -79,8 +95,9 @@ ACCESSORY_RULES = [
         "id": "cap",
         "slot": "head",
         "predicate": lambda w: (
-            w["clouds"] < 30
-            and 9 <= w["hour"] <= 17
+            _is_reasonable_daylight(w)
+            and w["clouds"] < 30
+            and 9 <= _local_hour(w) <= 17
             and w["temp"] < 28
         ),
         "badge_offset": (0.48, 0.07),
@@ -196,6 +213,18 @@ def pick_identity(config=None, characters_dir=None, current_weather=None):
     return gender, number
 
 
+def _with_sun_times(weather, sunrise, sunset):
+    """Propage lever/coucher sur une tranche prévision pour le jour/nuit."""
+    if sunrise is None and sunset is None:
+        return weather
+    out = dict(weather)
+    if sunrise is not None and "sunrise" not in out:
+        out["sunrise"] = sunrise
+    if sunset is not None and "sunset" not in out:
+        out["sunset"] = sunset
+    return out
+
+
 def active_accessories(weather):
     """
     Retourne la liste des accessoires actifs pour une tranche météo donnée.
@@ -238,8 +267,10 @@ def get_outfit_with_identity(current_weather, forecast_slices, gender, number):
     # Pour chaque tranche future, calcule les accessoires et garde les nouveaux
     future_acc = []
     seen = set(current_acc)
+    sr = current_weather.get("sunrise")
+    ss = current_weather.get("sunset")
     for slice_ in forecast_slices:
-        for acc in active_accessories(slice_):
+        for acc in active_accessories(_with_sun_times(slice_, sr, ss)):
             if acc not in seen:
                 future_acc.append(
                     {

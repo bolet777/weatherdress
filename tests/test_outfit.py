@@ -55,7 +55,7 @@ def test_accessories_sunglasses_clear_sky_alongside_sun_screen():
     assert "sun_screen" in acc
 
 
-def test_accessories_sunglasses_heatwave_high_clouds():
+def test_accessories_sunglasses_not_under_heavy_clouds_even_if_hot():
     w = {
         "rain": 0,
         "snow": 0,
@@ -64,7 +64,34 @@ def test_accessories_sunglasses_heatwave_high_clouds():
         "hour": 15,
         "temp": 34,
     }
-    assert "sunglasses" in active_accessories(w)
+    assert "sunglasses" not in active_accessories(w)
+
+
+def test_accessories_sunglasses_not_at_20h():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 15,
+        "hour": 20,
+        "temp": 22,
+    }
+    assert "sunglasses" not in active_accessories(w)
+
+
+def test_accessories_sunglasses_not_at_20h_future_slice():
+    w = {
+        "rain": 0,
+        "snow": 0,
+        "wind_kmh": 5,
+        "clouds": 25,
+        "hour": 20,
+        "temp": 22,
+        "forecast_ts": 1_700_000_000,
+        "sunrise": 1_699_900_000,
+        "sunset": 1_700_050_000,
+    }
+    assert "sunglasses" not in active_accessories(w)
 
 
 def test_accessories_sunglasses_not_at_night_by_hour():
@@ -127,6 +154,12 @@ def test_accessories_hat_clear_daytime():
     acc = active_accessories(w)
     assert "hat" in acc
     assert "beanie" not in acc
+
+
+def test_accessories_hat_not_at_night_even_if_hot():
+    w = {"rain": 0, "snow": 0, "wind_kmh": 4, "clouds": 12, "hour": 21, "temp": 33}
+    acc = active_accessories(w)
+    assert "hat" not in acc
 
 
 def test_accessories_scarf_cold():
