@@ -18,10 +18,11 @@ DEFAULT_LAYOUT = {
     "weather_screen_right_margin_pct": 0.04,
     # Espace (px) entre bord droit du sprite et début du texte
     "weather_gap_after_character_px": 12,
-    # Hauteur du 1er texte météo : fraction écran depuis le haut (0–1)
-    "weather_top_pct": 0.07,
-    # Décalage vertical du bloc météo et des cartes transport en dessous (négatif = remonter)
-    "weather_transit_vertical_offset_px": -28,
+    # Sans transport : fraction écran depuis le haut pour la température (0–1).
+    # Avec transport : position dans la bande entre l’horloge et les cartes (0 = haut, 1 = juste au-dessus).
+    "weather_top_pct": 0.18,
+    # Décalage vertical fin du bloc météo (px, négatif = remonter)
+    "weather_transit_vertical_offset_px": 0,
     # Tailles de police (min / max en px, bornées par l’écran)
     "weather_temp_font_min": 52,
     "weather_temp_font_max": 102,

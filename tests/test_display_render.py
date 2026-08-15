@@ -30,6 +30,25 @@ def _minimal_config():
     }
 
 
+def test_resolve_transit_panel_start_y_aligns_on_character_feet():
+    char_rect = pygame.Rect(0, 0, 100, 400)
+    char_rect.midbottom = (200, 460)
+    rows = [("bus", "Bus 1", "Stop", [], (0, 0, 0))]
+    row_stride = display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
+    start_y = display.resolve_transit_panel_start_y(
+        char_rect, rows, row_stride, 480
+    )
+    assert start_y == 460 - display.TRANSIT_CARD_HEIGHT
+    bottom = start_y + display.transit_panel_content_height(rows, row_stride)
+    assert bottom == char_rect.bottom
+
+
+def test_display_top_safe_margin_grows_with_screen():
+    small = display.display_top_safe_margin(480)
+    large = display.display_top_safe_margin(900)
+    assert large > small
+
+
 def test_render_future_accessories_column_runs_without_crash(tmp_path, monkeypatch):
     """Exerce accessoires futurs (colonne + pastilles heure)."""
     monkeypatch.setattr(pygame.display, "flip", lambda: None)

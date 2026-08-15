@@ -404,6 +404,117 @@ def transit_panel_reserved_height(config):
     return 0
 
 
+TIME_PILL_AA_SCALE = 3
+TIME_PILL_TOP_MARGIN = 12
+
+
+def _time_pill_metrics(screen_h):
+    """Tailles de la pilule horloge proportionnelles à la hauteur d’écran."""
+    h = max(240, int(screen_h))
+    font_px = max(30, min(52, int(round(h * 0.078))))
+    pad_y = max(10, int(round(font_px * 0.38)))
+    pad_x = max(16, int(round(font_px * 0.62)))
+    icon_r = max(12, int(round(font_px * 0.44)))
+    gap = max(9, int(round(font_px * 0.34)))
+    border_r = max(11, int(round(font_px * 0.4)))
+    pill_h = max(font_px + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4)
+    return {
+        "font_px": font_px,
+        "pad_x": pad_x,
+        "pad_y": pad_y,
+        "icon_r": icon_r,
+        "gap": gap,
+        "border_r": border_r,
+        "pill_h": pill_h,
+    }
+
+
+def display_top_safe_margin(screen_h):
+    """Espace réservé sous le bord haut (pilule horloge + marge)."""
+    m = _time_pill_metrics(screen_h)
+    return TIME_PILL_TOP_MARGIN + m["pill_h"] + 8
+
+
+def _draw_simple_clock_icon(surface, center, radius, color, line_width):
+    """Horloge en contour (cercle + aiguilles), pour rendu HR puis réduction."""
+    cx, cy = center
+    pygame.draw.circle(surface, color, (cx, cy), radius, line_width)
+    pygame.draw.line(
+        surface,
+        color,
+        (cx, cy),
+        (cx, cy - max(4, int(radius * 0.67))),
+        line_width,
+    )
+    pygame.draw.line(
+        surface,
+        color,
+        (cx, cy),
+        (cx + max(3, int(radius * 0.55)), cy + max(2, int(radius * 0.22))),
+        line_width,
+    )
+
+
+def draw_time_pill(surface, screen_w, screen_h):
+    """Heure locale centrée en haut : dessin HR + smoothscale (bords lissés)."""
+    s = TIME_PILL_AA_SCALE
+    t_str = datetime.now().strftime("%H:%M")
+    fg = (248, 248, 248)
+    bg = (20, 22, 28, 200)
+    m = _time_pill_metrics(screen_h)
+
+    font_hi = pygame.font.SysFont("sans-serif", m["font_px"] * s, bold=False)
+    text_surf = font_hi.render(t_str, True, fg)
+    tw, th = text_surf.get_size()
+
+    pad_x = m["pad_x"] * s
+    pad_y = m["pad_y"] * s
+    icon_r = m["icon_r"] * s
+    gap = m["gap"] * s
+    br = m["border_r"] * s
+    line_w = max(1, 2 * s)
+
+    w_hi = 2 * pad_x + 2 * icon_r + gap + tw
+    h_hi = max(th + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4 * s)
+
+    pill_hi = pygame.Surface((w_hi, h_hi), pygame.SRCALPHA)
+    pygame.draw.rect(pill_hi, bg, pill_hi.get_rect(), border_radius=br)
+
+    cx = pad_x + icon_r
+    cy = h_hi // 2
+    _draw_simple_clock_icon(pill_hi, (cx, cy), icon_r, fg, line_w)
+
+    text_x = pad_x + 2 * icon_r + gap
+    pill_hi.blit(text_surf, (text_x, (h_hi - th) // 2))
+
+    out_w = max(1, round(w_hi / s))
+    out_h = max(1, round(h_hi / s))
+    pill = pygame.transform.smoothscale(pill_hi, (out_w, out_h))
+    surface.blit(
+        pill, pill.get_rect(midtop=(screen_w // 2, TIME_PILL_TOP_MARGIN))
+    )
+
+
+def transit_panel_content_height(rows, row_stride):
+    """Hauteur totale des cartes transport visibles."""
+    n = len(rows)
+    if n <= 0:
+        return 0
+    return (n - 1) * row_stride + TRANSIT_CARD_HEIGHT
+
+
+def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
+    """
+    Ancre le bas des cartes transport sur les pieds du personnage.
+    Retourne None si aucune carte.
+    """
+    if not rows:
+        return None
+    panel_h = transit_panel_content_height(rows, row_stride)
+    feet_y = min(int(char_rect.bottom), screen_h - 4)
+    return feet_y - panel_h
+
+
 def draw_weather_text_block(
     surface,
     config,
@@ -416,6 +527,9 @@ def draw_weather_text_block(
     char_rect,
     layout,
     usable_screen_h=None,
+    *,
+    anchor_bottom_y=None,
+    top_safe_px=None,
 ):
     """
     Température + description : position selon layout (après personnage ou bord droit).
@@ -468,7 +582,7 @@ def draw_weather_text_block(
         desc_lines = [desc]
 
     gap_td = 8
-    line_gap = 4
+    line_gap = 6
     temp_line_h = font_temp.get_height()
     icon_target_h = max(1, int(round(temp_line_h * WEATHER_ICON_HEIGHT_FACTOR)))
     temp_h = (
@@ -481,6 +595,11 @@ def draw_weather_text_block(
         desc_block_h = 0
     total_h = temp_h + gap_td + desc_block_h
     v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
+    top_safe = (
+        int(top_safe_px)
+        if top_safe_px is not None
+        else display_top_safe_margin(screen_h) + 4
+    )
 
     if mode == "screen_right":
         temp_text_w = font_temp.size(temp_line)[0]
@@ -493,7 +612,7 @@ def draw_weather_text_block(
         column_left = right_x - max_w
 
         y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
-        y = max(DISPLAY_TOP_SAFE_MARGIN + 4, min(y, uh - total_h - 8))
+        y = max(top_safe, min(y, uh - total_h - 8))
         y += _blit_temperature_with_icon(
             surface,
             "right",
@@ -517,8 +636,19 @@ def draw_weather_text_block(
     gap_px = int(layout["weather_gap_after_character_px"])
     left_x = char_rect.right + gap_px
     left_x = max(0, min(left_x, screen_w - 72))
-    y = int(float(layout["weather_top_pct"]) * uh) + v_off
-    y = max(DISPLAY_TOP_SAFE_MARGIN + 4, min(y, uh - total_h - 8))
+    if anchor_bottom_y is not None:
+        zone_bottom = int(anchor_bottom_y) - TRANSIT_AFTER_WEATHER_GAP
+        free = zone_bottom - top_safe - total_h
+        if free > 48:
+            gap_td = max(gap_td, min(22, int(free * 0.08)))
+            total_h = temp_h + gap_td + desc_block_h
+            free = zone_bottom - top_safe - total_h
+        bias = max(0.0, min(1.0, float(layout.get("weather_top_pct", 0.18))))
+        y = top_safe + int(max(0, free) * bias) + v_off
+        y = max(top_safe, min(y, zone_bottom - total_h))
+    else:
+        y = int(float(layout["weather_top_pct"]) * uh) + v_off
+        y = max(top_safe, min(y, uh - total_h - 8))
 
     y += _blit_temperature_with_icon(
         surface,
@@ -541,93 +671,18 @@ def draw_weather_text_block(
     return {"column_left": left_x, "bottom_y": y}
 
 
-TIME_PILL_AA_SCALE = 3
-TIME_PILL_FONT_PX = 28
-TIME_PILL_ICON_R = 12
-TIME_PILL_GAP = 10
-TIME_PILL_PAD_X = 18
-TIME_PILL_PAD_Y = 11
-TIME_PILL_BORDER_R = 12
-
-# Réserve verticale sous le bord haut : pilule horloge + marge (bloc météo / personnage)
-DISPLAY_TOP_SAFE_MARGIN = 12 + TIME_PILL_FONT_PX + 2 * TIME_PILL_PAD_Y
-
-
-def _draw_simple_clock_icon(surface, center, radius, color, line_width):
-    """Horloge en contour (cercle + aiguilles), pour rendu HR puis réduction."""
-    cx, cy = center
-    pygame.draw.circle(surface, color, (cx, cy), radius, line_width)
-    pygame.draw.line(
-        surface,
-        color,
-        (cx, cy),
-        (cx, cy - max(4, int(radius * 0.67))),
-        line_width,
-    )
-    pygame.draw.line(
-        surface,
-        color,
-        (cx, cy),
-        (cx + max(3, int(radius * 0.55)), cy + max(2, int(radius * 0.22))),
-        line_width,
-    )
-
-
-def draw_time_pill(surface, screen_w, top_margin=12):
-    """Heure locale centrée en haut : dessin HR + smoothscale (bords lissés)."""
-    s = TIME_PILL_AA_SCALE
-    t_str = datetime.now().strftime("%H:%M")
-    fg = (248, 248, 248)
-    bg = (20, 22, 28, 200)
-
-    font_hi = pygame.font.SysFont("sans-serif", TIME_PILL_FONT_PX * s, bold=False)
-    text_surf = font_hi.render(t_str, True, fg)
-    tw, th = text_surf.get_size()
-
-    pad_x = TIME_PILL_PAD_X * s
-    pad_y = TIME_PILL_PAD_Y * s
-    icon_r = TIME_PILL_ICON_R * s
-    gap = TIME_PILL_GAP * s
-    br = TIME_PILL_BORDER_R * s
-    line_w = max(1, 2 * s)
-
-    w_hi = 2 * pad_x + 2 * icon_r + gap + tw
-    h_hi = max(th + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4 * s)
-
-    pill_hi = pygame.Surface((w_hi, h_hi), pygame.SRCALPHA)
-    pygame.draw.rect(pill_hi, bg, pill_hi.get_rect(), border_radius=br)
-
-    cx = pad_x + icon_r
-    cy = h_hi // 2
-    _draw_simple_clock_icon(pill_hi, (cx, cy), icon_r, fg, line_w)
-
-    text_x = pad_x + 2 * icon_r + gap
-    pill_hi.blit(text_surf, (text_x, (h_hi - th) // 2))
-
-    out_w = max(1, round(w_hi / s))
-    out_h = max(1, round(h_hi / s))
-    pill = pygame.transform.smoothscale(pill_hi, (out_w, out_h))
-    surface.blit(pill, pill.get_rect(midtop=(screen_w // 2, top_margin)))
-
-
 def _place_character_rect(
     char_rect,
     *,
     char_center_x,
     char_y_fallback,
-    transit_bottom,
     screen_h,
+    top_safe_margin,
 ):
-    """Position verticale du sprite ; pieds sur le transit seulement si le sprite tient en hauteur."""
+    """Position verticale du sprite (centre par défaut, borné haut / bas écran)."""
     char_rect.centery = char_y_fallback
-    if transit_bottom is not None:
-        feet_y = min(int(transit_bottom), screen_h - 4)
-        trial = char_rect.copy()
-        trial.midbottom = (char_center_x, feet_y)
-        if trial.top >= DISPLAY_TOP_SAFE_MARGIN:
-            char_rect.midbottom = (char_center_x, feet_y)
-    if char_rect.top < DISPLAY_TOP_SAFE_MARGIN:
-        char_rect.top = DISPLAY_TOP_SAFE_MARGIN
+    if char_rect.top < top_safe_margin:
+        char_rect.top = top_safe_margin
     if char_rect.bottom > screen_h - 4:
         char_rect.bottom = screen_h - 4
 
@@ -946,10 +1001,11 @@ def render(
     else:
         screen.fill(background_color(config))
 
-    draw_time_pill(screen, screen_w)
+    draw_time_pill(screen, screen_w, screen_h)
 
     use_photo_background = bg_surf is not None
     use_circle = not use_photo_background
+    top_safe = display_top_safe_margin(screen_h)
 
     # Médaillon : uniquement sans image météo plein écran (sinon personnage + texte sur le fond photo)
     if not use_photo_background:
@@ -984,9 +1040,30 @@ def render(
         char_rect.centerx = char_center_x
         char_rect.centery = char_y_fallback
 
+    _place_character_rect(
+        char_rect,
+        char_center_x=char_center_x,
+        char_y_fallback=char_y_fallback,
+        screen_h=screen_h,
+        top_safe_margin=top_safe,
+    )
+
     margin_right = max(
         16, int(screen_w * float(layout["weather_screen_right_margin_pct"]))
     )
+
+    transit_start_y = None
+    if transit_module.transit_config_enabled(config):
+        transit_rows, transit_row_stride = _transit_panel_build_rows(
+            transit_data,
+            config,
+            screen_h=screen_h,
+            start_y=0,
+            transit_phase_t=transit_phase_t,
+        )
+        transit_start_y = resolve_transit_panel_start_y(
+            char_rect, transit_rows, transit_row_stride, screen_h
+        )
 
     weather_layout = draw_weather_text_block(
         screen,
@@ -1000,28 +1077,8 @@ def render(
         char_rect,
         layout,
         usable_screen_h=usable_h,
-    )
-
-    transit_bottom = None
-    if transit_module.transit_config_enabled(config):
-        transit_start_y = weather_layout["bottom_y"] + TRANSIT_AFTER_WEATHER_GAP
-        rows, row_stride = _transit_panel_build_rows(
-            transit_data,
-            config,
-            screen_h=screen_h,
-            start_y=transit_start_y,
-            transit_phase_t=transit_phase_t,
-        )
-        transit_bottom = transit_panel_last_visible_card_bottom(
-            screen_h, transit_start_y, rows, row_stride
-        )
-
-    _place_character_rect(
-        char_rect,
-        char_center_x=char_center_x,
-        char_y_fallback=char_y_fallback,
-        transit_bottom=transit_bottom,
-        screen_h=screen_h,
+        anchor_bottom_y=transit_start_y,
+        top_safe_px=top_safe + 4,
     )
 
     if char_img:
@@ -1052,13 +1109,13 @@ def render(
         config,
     )
 
-    if transit_module.transit_config_enabled(config):
+    if transit_module.transit_config_enabled(config) and transit_start_y is not None:
         draw_transit_panel(
             screen,
             transit_data,
             config,
             column_left=weather_layout["column_left"],
-            start_y=weather_layout["bottom_y"] + TRANSIT_AFTER_WEATHER_GAP,
+            start_y=transit_start_y,
             margin_right=margin_right,
             bg_surf=bg_surf,
             transit_phase_t=transit_phase_t,
