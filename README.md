@@ -199,7 +199,7 @@ make test
 | `forecast_step_hours` | Granularité des tranches (3h sur l'API gratuite) |
 | `identity_on_each_refresh` | `true` / `false` : nouveau couple genre / variante à chaque fetch météo ou identité fixe. **Si la clé est absente** et `refresh_minutes` ≤ 1, la rotation est **activée** (pratique pour les tests) ; sinon identité fixe au démarrage (comportement Pi). |
 | `character_variant_max` | Optionnel, **clip** `n ≤ max` après lecture des PNG dans `images/characters/` pour le préfixe météo courant. Sans la clé ou ≤ 0 : tous les fichiers présents sont éligibles. |
-| `transit` | Optionnel : bandeau bas STM (bus temps réel + métro au prochain horaire GTFS). Requiert au minimum `gtfs_url` et `metro_station`. Clés utiles : `stm_api_key` (Open Data STM, pour le flux tripUpdates bus), `bus_stops` (`stop_id` → libellé), `metro_route_id`, `metro_directions` (libellés : clés = `trip_headsign` exact du GTFS), `transit_refresh_seconds`. Le GTFS est mis en cache sous `cache/gtfs_stm.zip`. |
+| `transit` | Optionnel : bandeau bas STM (bus temps réel + métro au prochain horaire GTFS). Requiert au minimum `gtfs_url` et `metro_station`. Clés utiles : `stm_api_key` (Open Data STM, pour le flux tripUpdates bus), `bus_stops` (`stop_id` → libellé), `metro_route_id`, `metro_directions` (libellés : clés = `trip_headsign` exact du GTFS), `transit_refresh_seconds`. Le GTFS est mis en cache sous `cache/gtfs_stm.zip` ; l’index métro dérivé sous `cache/metro_index.json` (invalidé si le GTFS ou la config métro change). Au démarrage, les cartes bus/métro s’affichent tout de suite (—) ; le bus se met à jour sans attendre l’index métro. |
 
 ---
 

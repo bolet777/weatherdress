@@ -131,7 +131,7 @@ def main():
     )
 
     transit_fetcher = None
-    transit_state = {"ready": False, "error": None}
+    transit_state = {"metro_ready": False, "error": None}
     transit_data = {"bus": {}, "metro": {}}
     last_transit_refresh = 0.0
     transit_refresh_secs = 30
@@ -141,15 +141,15 @@ def main():
             config.get("transit", {}).get("transit_refresh_seconds", 30)
         )
 
-        def _init_transit():
+        def _init_metro_index():
             try:
                 transit_fetcher.initialize()
-                transit_state["ready"] = True
+                transit_state["metro_ready"] = True
             except Exception as e:
                 transit_state["error"] = str(e)
-                print(f"[transit] Échec initialisation : {e}")
+                print(f"[transit] Échec initialisation métro : {e}")
 
-        threading.Thread(target=_init_transit, daemon=True).start()
+        threading.Thread(target=_init_metro_index, daemon=True).start()
 
     clock = pygame.time.Clock()
 
@@ -163,18 +163,14 @@ def main():
                 sys.exit()
 
         now = time.time()
-        if (
-            transit_fetcher
-            and transit_state["ready"]
-        ):
+        if transit_fetcher:
             transit_due = (last_transit_refresh == 0.0) or (
                 now - last_transit_refresh >= transit_refresh_secs
             )
             if transit_due:
-                transit_data = {
-                    "bus": transit_fetcher.get_bus_departures(),
-                    "metro": transit_fetcher.get_metro_departures(),
-                }
+                transit_data["bus"] = transit_fetcher.get_bus_departures()
+                if transit_state["metro_ready"]:
+                    transit_data["metro"] = transit_fetcher.get_metro_departures()
                 last_transit_refresh = now
 
         if debug_controller is not None:
@@ -218,8 +214,12 @@ def main():
                 last_refresh = now - refresh_interval + 300
 
         transit_for_render = None
-        if transit_module.transit_config_enabled(config) and transit_state["ready"]:
-            transit_for_render = transit_data
+        if transit_module.transit_config_enabled(config):
+            transit_for_render = transit_module.merge_transit_display_data(
+                config,
+                transit_data,
+                metro_ready=transit_state["metro_ready"],
+            )
 
         if current_outfit and current_weather_data:
             display.render(

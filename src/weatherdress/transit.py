@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import time
 import zipfile
@@ -11,9 +12,10 @@ from datetime import date, datetime
 
 import requests
 
-from .paths import GTFS_CACHE_PATH
+from .paths import GTFS_CACHE_PATH, METRO_INDEX_CACHE_PATH
 
 GTFS_CACHE_HOURS = 168  # 1 semaine
+METRO_INDEX_CACHE_VERSION = 1
 
 # Colonnes calendar.txt : indépendantes de la locale (strftime %A serait « lundi » en fr_FR).
 WEEKDAY_COLUMNS = (
@@ -86,12 +88,45 @@ def resolve_stm_api_key(transit_config: dict) -> tuple[str, str | None]:
     )
 
 
+def transit_placeholder_data(config: dict) -> dict:
+    """Cartes transport sans horaires (—), dérivées de config.transit."""
+    t = config.get("transit") or {}
+    bus_stops = t.get("bus_stops") or {}
+    bus = {
+        str(sid): {"route": "", "label": str(label), "minutes": []}
+        for sid, label in bus_stops.items()
+    }
+    directions = t.get("metro_directions") or {}
+    if directions:
+        metro = {str(hs): [] for hs in directions}
+    elif (t.get("metro_station") or "").strip():
+        metro = {"": []}
+    else:
+        metro = {}
+    return {"bus": bus, "metro": metro}
+
+
+def merge_transit_display_data(
+    config: dict, live: dict, *, metro_ready: bool
+) -> dict:
+    """Placeholders config + données live (bus dès que disponible, métro si index prêt)."""
+    out = transit_placeholder_data(config)
+    for sid, data in (live.get("bus") or {}).items():
+        out["bus"][str(sid)] = data
+    if metro_ready:
+        out["metro"] = dict(live.get("metro") or {})
+    return out
+
+
 class TransitFetcher:
     def __init__(self, config: dict):
         self.config = config["transit"]
         self._metro_index: list[tuple[str, int]] = []
         self._metro_trips: dict[str, dict[str, str]] = {}
         self._gtfs_path = GTFS_CACHE_PATH
+        self._metro_index_cache_path = METRO_INDEX_CACHE_PATH
+        self._active_services_for_date: date | None = None
+        self._active_service_ids_cached: set[str] | None = None
 
     def initialize(self) -> None:
         """Télécharge le GTFS si besoin et construit l’index métro."""
@@ -127,7 +162,82 @@ class TransitFetcher:
             with z.open(member) as f:
                 return list(csv.DictReader(io.TextIOWrapper(f, encoding="utf-8-sig")))
 
+    def _metro_index_cache_fingerprint(self) -> dict:
+        gtfs_mtime_ns = 0
+        if self._gtfs_path.is_file():
+            gtfs_mtime_ns = self._gtfs_path.stat().st_mtime_ns
+        return {
+            "version": METRO_INDEX_CACHE_VERSION,
+            "gtfs_mtime_ns": gtfs_mtime_ns,
+            "metro_station": str(self.config["metro_station"]),
+            "metro_route_id": str(self.config["metro_route_id"]),
+        }
+
+    def _try_load_metro_index_cache(self) -> bool:
+        path = self._metro_index_cache_path
+        if not path.is_file() or not self._gtfs_path.is_file():
+            return False
+        try:
+            with open(path, encoding="utf-8") as f:
+                payload = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"[transit] Cache index métro illisible ({path}) : {e}")
+            return False
+        if payload.get("fingerprint") != self._metro_index_cache_fingerprint():
+            return False
+        trips = payload.get("metro_trips")
+        index_raw = payload.get("metro_index")
+        if not isinstance(trips, dict) or not isinstance(index_raw, list):
+            return False
+        self._metro_trips = {
+            str(tid): {
+                "headsign": str(meta.get("headsign") or ""),
+                "service_id": str(meta["service_id"]),
+            }
+            for tid, meta in trips.items()
+            if isinstance(meta, dict) and meta.get("service_id") is not None
+        }
+        self._metro_index = []
+        for item in index_raw:
+            if (
+                isinstance(item, (list, tuple))
+                and len(item) == 2
+                and item[1] is not None
+            ):
+                self._metro_index.append((str(item[0]), int(item[1])))
+        if not self._metro_index:
+            return False
+        print(
+            f"[transit] Index métro chargé depuis le cache "
+            f"({len(self._metro_index)} passages)."
+        )
+        return True
+
+    def _save_metro_index_cache(self) -> None:
+        path = self._metro_index_cache_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "fingerprint": self._metro_index_cache_fingerprint(),
+            "metro_trips": self._metro_trips,
+            "metro_index": [[tid, dep] for tid, dep in self._metro_index],
+        }
+        tmp = path.with_suffix(".json.tmp")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ":"))
+            tmp.replace(path)
+        except OSError as e:
+            print(f"[transit] Impossible d’écrire le cache index métro : {e}")
+            if tmp.is_file():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+
     def _build_metro_index(self) -> None:
+        if self._try_load_metro_index_cache():
+            return
+
         station_name = self.config["metro_station"]
         metro_route_id = str(self.config["metro_route_id"])
 
@@ -166,9 +276,16 @@ class TransitFetcher:
                         continue
                     self._metro_index.append((row["trip_id"], dep_secs))
         print(f"[transit] Index métro prêt ({len(self._metro_index)} passages).")
+        self._save_metro_index_cache()
 
     def _active_service_ids(self) -> set[str]:
         today = date.today()
+        if (
+            self._active_services_for_date == today
+            and self._active_service_ids_cached is not None
+        ):
+            return self._active_service_ids_cached
+
         weekday_col = weekday_column_for_date(today)
         today_str = today.strftime("%Y%m%d")
 
@@ -187,6 +304,8 @@ class TransitFetcher:
                 active.add(r["service_id"])
             elif r.get("exception_type") == "2":
                 active.discard(r["service_id"])
+        self._active_services_for_date = today
+        self._active_service_ids_cached = active
         return active
 
     def get_metro_departures(self) -> dict[str, list[int]]:
