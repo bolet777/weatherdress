@@ -14,13 +14,21 @@
   "ambient_day_overcast_bg": [152, 158, 168],
   "character_colorkey": null,
   "layout": {
-    "weather_mode": "after_character",
-    "weather_top_pct": 0.07,
-    "weather_transit_vertical_offset_px": -28,
-    "weather_gap_after_character_px": 12,
     "character_center_x_pct": 0.28,
+    "character_center_y_offset_px": -6,
+    "character_max_width_pct": 0.42,
+    "character_max_height_pct": 0.84,
+    "weather_mode": "after_character",
+    "weather_screen_right_margin_pct": 0.04,
+    "weather_gap_after_character_px": 12,
+    "weather_top_pct": 0.18,
+    "weather_transit_vertical_offset_px": 0,
     "weather_temp_font_min": 52,
-    "weather_temp_font_max": 102
+    "weather_temp_font_max": 102,
+    "weather_desc_font_min": 22,
+    "weather_desc_font_max": 38,
+    "weather_note_font_min": 15,
+    "weather_note_font_max": 26
   },
   "background_color": [255, 255, 255],
   "circle_background_color": [230, 230, 230],
@@ -48,6 +56,10 @@
       "Saint-Michel": "St-Michel"
     },
     "transit_refresh_seconds": 30,
-    "transit_alternate_seconds": 5
+    "transit_alternate_seconds": 5,
+    "card_title_font_px": 22,
+    "card_subtitle_font_px": 16,
+    "card_times_font_px": 24,
+    "strip_mode_letter_font_px": 42
   }
 }

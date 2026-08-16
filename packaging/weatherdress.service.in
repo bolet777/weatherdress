@@ -1,6 +1,9 @@
 [Unit]
 Description=WeatherDress — affichage météo habillé
+# Ne pas WantedBy=multi-user.target : avec After=graphical.target systemd détecte un
+# cycle (multi-user → weatherdress → graphical → multi-user) et supprime le job au boot.
 After=network.target graphical.target
+Wants=network.target
 
 [Service]
 # SDL / Pygame : XDG_RUNTIME_DIR doit exister (souvent absent si pas de session graphique au boot).
@@ -17,4 +20,4 @@ Environment=XDG_RUNTIME_DIR=@XDG_RUNTIME_DIR@
 Environment=XDG_SESSION_TYPE=x11
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target

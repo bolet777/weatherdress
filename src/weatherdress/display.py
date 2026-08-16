@@ -500,18 +500,20 @@ def transit_panel_content_height(rows, row_stride):
     n = len(rows)
     if n <= 0:
         return 0
-    return (n - 1) * row_stride + TRANSIT_CARD_HEIGHT
+    card_h = row_stride - TRANSIT_CARD_GAP
+    return (n - 1) * row_stride + card_h
 
 
 def transit_max_rows_from_start_y(screen_h, start_y, row_stride):
     """
     Nombre de cartes entières entre start_y et le bas de l’écran.
-    La dernière carte n’occupe que TRANSIT_CARD_HEIGHT (pas un stride complet).
+    La dernière carte n’occupe que la hauteur de carte (pas un stride complet).
     """
+    card_h = row_stride - TRANSIT_CARD_GAP
     avail = (screen_h - 4) - int(start_y)
-    if avail < TRANSIT_CARD_HEIGHT:
+    if avail < card_h:
         return 0
-    return 1 + (avail - TRANSIT_CARD_HEIGHT) // row_stride
+    return 1 + (avail - card_h) // row_stride
 
 
 def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
@@ -768,17 +770,61 @@ def _place_character_rect(
         char_rect.bottom = screen_h - 4
 
 
+def _transit_font_px(raw, default, *, lo=8, hi=120):
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(lo, min(hi, v))
+
+
+def transit_card_layout(config):
+    """
+    Tailles de police et hauteur des cartes bus / métro (clés optionnelles sous ``transit``).
+    """
+    t = config.get("transit") if isinstance(config.get("transit"), dict) else {}
+    title_px = _transit_font_px(
+        t.get("card_title_font_px"), TRANSIT_CARD_TITLE_PX, lo=10, hi=48
+    )
+    subtitle_px = _transit_font_px(
+        t.get("card_subtitle_font_px"), TRANSIT_CARD_SUBTITLE_PX, lo=8, hi=40
+    )
+    times_px = _transit_font_px(
+        t.get("card_times_font_px"), TRANSIT_CARD_TIMES_PX, lo=10, hi=56
+    )
+    strip_letter_px = _transit_font_px(
+        t.get("strip_mode_letter_font_px"), TRANSIT_STRIP_MODE_LETTER_PX, lo=12, hi=72
+    )
+    pad_inner = 12
+    if t.get("card_height_px") is not None:
+        card_h = _transit_font_px(
+            t.get("card_height_px"), TRANSIT_CARD_HEIGHT, lo=48, hi=200
+        )
+    else:
+        text_block = title_px + 3 + subtitle_px
+        inner = max(text_block, times_px) + 2 * pad_inner
+        card_h = max(TRANSIT_CARD_HEIGHT, inner)
+    return {
+        "title_px": title_px,
+        "subtitle_px": subtitle_px,
+        "times_px": times_px,
+        "strip_letter_px": strip_letter_px,
+        "card_height": card_h,
+        "row_stride": card_h + TRANSIT_CARD_GAP,
+    }
+
+
 def _transit_blit_card_shadow(screen, rect, br):
     sh = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
     pygame.draw.rect(sh, TRANSIT_CARD_SHADOW_RGBA, sh.get_rect(), border_radius=br)
     screen.blit(sh, (rect.x + 3, rect.y + 4))
 
 
-def _transit_strip_mode_letter(screen, strip_rect, letter):
+def _transit_strip_mode_letter(screen, strip_rect, letter, font_px):
     """Repli : lettre centrée si les PNG d’icônes manquent."""
     x, y, w, h = strip_rect
     cx, cy = x + w // 2, y + h // 2
-    font = pygame.font.SysFont("sans-serif", TRANSIT_STRIP_MODE_LETTER_PX, bold=True)
+    font = pygame.font.SysFont("sans-serif", font_px, bold=True)
     surf = font.render(letter, True, (255, 255, 255))
     screen.blit(surf, surf.get_rect(center=(cx, cy)))
 
@@ -799,14 +845,14 @@ def _transit_blit_strip_icon(screen, strip_rect, icon_filename):
     return True
 
 
-def _transit_strip_bus(screen, strip_rect):
+def _transit_strip_bus(screen, strip_rect, strip_letter_px):
     if not _transit_blit_strip_icon(screen, strip_rect, "bus.png"):
-        _transit_strip_mode_letter(screen, strip_rect, "B")
+        _transit_strip_mode_letter(screen, strip_rect, "B", strip_letter_px)
 
 
-def _transit_strip_metro(screen, strip_rect):
+def _transit_strip_metro(screen, strip_rect, strip_letter_px):
     if not _transit_blit_strip_icon(screen, strip_rect, "subway.png"):
-        _transit_strip_mode_letter(screen, strip_rect, "M")
+        _transit_strip_mode_letter(screen, strip_rect, "M", strip_letter_px)
 
 
 def _transit_blit_times_row(
@@ -871,7 +917,8 @@ def _transit_panel_build_rows(
     )
     metro_directions = transit_config.get("metro_directions", {}) or {}
 
-    row_stride = TRANSIT_CARD_HEIGHT + TRANSIT_CARD_GAP
+    card_layout = transit_card_layout(config)
+    row_stride = card_layout["row_stride"]
     max_rows = transit_max_rows_from_start_y(screen_h, start_y, row_stride)
     if max_rows < 1:
         return [], row_stride
@@ -932,12 +979,13 @@ def _transit_panel_build_rows(
 
 def transit_panel_last_visible_card_bottom(screen_h, start_y, rows, row_stride):
     """Bas de la dernière carte réellement visible (même coupe que la boucle de dessin)."""
+    card_h = row_stride - TRANSIT_CARD_GAP
     last_bottom = None
     for i, _ in enumerate(rows):
         card_y = int(start_y) + i * row_stride
-        if card_y + TRANSIT_CARD_HEIGHT > screen_h - 4:
+        if card_y + card_h > screen_h - 4:
             break
-        last_bottom = card_y + TRANSIT_CARD_HEIGHT
+        last_bottom = card_y + card_h
     return last_bottom
 
 
@@ -972,14 +1020,24 @@ def draw_transit_panel(
         transit_phase_t=transit_phase_t,
     )
 
+    card_layout = transit_card_layout(config)
+    card_h = card_layout["card_height"]
+    strip_letter_px = card_layout["strip_letter_px"]
+
     right_x = screen_w - margin_right
     card_w = max(40, right_x - int(column_left))
     br = TRANSIT_CARD_BORDER_RADIUS
     strip_w = min(TRANSIT_STRIP_WIDTH, card_w // 3)
 
-    title_font = pygame.font.SysFont("sans-serif", TRANSIT_CARD_TITLE_PX, bold=True)
-    sub_font = pygame.font.SysFont("sans-serif", TRANSIT_CARD_SUBTITLE_PX, bold=False)
-    times_font = pygame.font.SysFont("sans-serif", TRANSIT_CARD_TIMES_PX, bold=True)
+    title_font = pygame.font.SysFont(
+        "sans-serif", card_layout["title_px"], bold=True
+    )
+    sub_font = pygame.font.SysFont(
+        "sans-serif", card_layout["subtitle_px"], bold=False
+    )
+    times_font = pygame.font.SysFont(
+        "sans-serif", card_layout["times_px"], bold=True
+    )
     title_rgb = TRANSIT_LABEL_ON_LIGHT
     sub_rgb = TRANSIT_LABEL_ON_LIGHT
     times_rgb = TRANSIT_TIMES_ON_LIGHT
@@ -989,9 +1047,9 @@ def draw_transit_panel(
 
     for i, (mode, title, subtitle, minutes, strip_color) in enumerate(rows):
         card_y = int(start_y) + i * row_stride
-        if card_y + TRANSIT_CARD_HEIGHT > screen_h - 4:
+        if card_y + card_h > screen_h - 4:
             break
-        card_rect = pygame.Rect(int(column_left), card_y, card_w, TRANSIT_CARD_HEIGHT)
+        card_rect = pygame.Rect(int(column_left), card_y, card_w, card_h)
         _transit_blit_card_shadow(screen, card_rect, br)
         pygame.draw.rect(screen, TRANSIT_CARD_BG, card_rect, border_radius=br)
 
@@ -1006,9 +1064,9 @@ def draw_transit_panel(
             border_bottom_right_radius=0,
         )
         if mode == "bus":
-            _transit_strip_bus(screen, strip_rect)
+            _transit_strip_bus(screen, strip_rect, strip_letter_px)
         else:
-            _transit_strip_metro(screen, strip_rect)
+            _transit_strip_metro(screen, strip_rect, strip_letter_px)
 
         text_left = card_rect.x + content_left_off
         text_right = card_rect.right - pad_inner
@@ -1154,7 +1212,7 @@ def render(
     if layout.get("weather_mode", "after_character") == "after_character":
         transit_panel_h = 0
         transit_rows = []
-        transit_row_stride = TRANSIT_CARD_HEIGHT + TRANSIT_CARD_GAP
+        transit_row_stride = transit_card_layout(config)["row_stride"]
         if transit_module.transit_config_enabled(config):
             transit_rows, transit_row_stride = _transit_panel_build_rows(
                 transit_data,

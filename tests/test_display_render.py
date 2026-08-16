@@ -86,6 +86,31 @@ def test_transit_max_rows_allows_bus_and_metro_when_anchored_on_feet():
     assert bottom <= char_rect.bottom
 
 
+def test_transit_card_layout_defaults():
+    layout = display.transit_card_layout({})
+    assert layout["title_px"] == display.TRANSIT_CARD_TITLE_PX
+    assert layout["card_height"] == display.TRANSIT_CARD_HEIGHT
+    assert layout["row_stride"] == display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
+
+
+def test_transit_card_layout_custom_fonts_and_height():
+    cfg = {
+        "transit": {
+            "card_title_font_px": 28,
+            "card_subtitle_font_px": 20,
+            "card_times_font_px": 30,
+            "strip_mode_letter_font_px": 50,
+            "card_height_px": 96,
+        }
+    }
+    layout = display.transit_card_layout(cfg)
+    assert layout["title_px"] == 28
+    assert layout["times_px"] == 30
+    assert layout["strip_letter_px"] == 50
+    assert layout["card_height"] == 96
+    assert layout["row_stride"] == 96 + display.TRANSIT_CARD_GAP
+
+
 def test_transit_panel_build_rows_keeps_metro_when_start_y_is_low():
     row_stride = display.TRANSIT_CARD_HEIGHT + display.TRANSIT_CARD_GAP
     char_rect = pygame.Rect(0, 0, 120, 380)
