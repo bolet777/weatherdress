@@ -1,6 +1,6 @@
 # Fonds d’écran météo
 
-Les images dans `images/backgrounds/` sont choisies selon la **réponse OpenWeatherMap** (code condition `weather[0].id` et icône `weather[0].icon` pour le jour / la nuit en ciel dégagé).
+Les images dans `images/backgrounds/` sont choisies selon la **réponse OpenWeatherMap** (code condition `weather[0].id`, puis le suffixe jour/nuit de l’icône `weather[0].icon`).
 
 ## Fichier de mapping
 
@@ -10,9 +10,10 @@ Tout est centralisé dans **`images/backgrounds/background_map.json`** :
 - **`rules`** : liste **ordonnée** de règles ; la **première** qui correspond gagne.
   - **`condition_id`** : code exact OpenWeatherMap (voir [Weather conditions](https://openweathermap.org/weather-conditions)).
   - **`condition_id_range`** : plage inclusive `[min, max]` (ex. orages `200`–`232`).
-  - **`icon_suffix`** (optionnel) : dernier caractère de l’icône OWM (`d` = jour, `n` = nuit). Utilisé pour le code `800` (ciel dégagé) : jour → `sunny`, nuit → `clear`.
   - **`key`** : clé dans `keys_to_file`.
 - **`default_key`** : clé utilisée si aucune règle ne correspond (icône inattendue, etc.).
+
+Si l’icône finit par `n` et que `{clé}_night` existe dans `keys_to_file`, cette clé de nuit est utilisée (`rain` → `rain_night`, ciel dégagé `800` → `sunny_night`). Sinon la clé de jour est conservée. Une icône sans suffixe `n` reste sur la clé de jour (`800` → `sunny`).
 
 Modifier ce JSON **ne nécessite pas** de toucher au code Python : redémarrer l’app suffit (le fichier est relu quand sa date de modification change).
 
@@ -63,4 +64,4 @@ Référence pour nommer ou regrouper vos assets :
 6. Neige / verglas  
 7. Brouillard / brume / poussière  
 
-Les clés par défaut (`sunny`, `partly_cloudy`, `overcast`, `drizzle`, `rain`, `thunderstorm`, `snow`, `fog`, `dust`, `clear`) peuvent être renommées dans `keys_to_file` tant que vous gardez les mêmes `key` dans `rules`.
+Les clés par défaut (`sunny`, `partly_cloudy`, `overcast`, `drizzle`, `rain`, `thunderstorm`, `snow`, `fog`, `dust`, et leurs variantes `_night`) peuvent être renommées dans `keys_to_file` tant que vous gardez les mêmes `key` dans `rules`.

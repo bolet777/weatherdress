@@ -40,8 +40,36 @@ def test_resolve_key_clear_day_vs_night():
         background_assets.resolve_background_key(
             {"condition_id": 800, "icon": "01n"}, m
         )
-        == "clear"
+        == "sunny_night"
     )
+    assert (
+        background_assets.resolve_background_key(
+            {"condition_id": 800, "icon": "01"}, m
+        )
+        == "sunny"
+    )
+
+
+def test_resolve_key_rain_night():
+    m = background_assets.load_background_map(_map_path())
+    w = {"condition_id": 500, "icon": "10n"}
+    assert background_assets.resolve_background_key(w, m) == "rain_night"
+
+
+def test_resolve_key_fog_day():
+    m = background_assets.load_background_map(_map_path())
+    w = {"condition_id": 741, "icon": "50d"}
+    assert background_assets.resolve_background_key(w, m) == "fog"
+
+
+def test_resolve_key_night_falls_back_to_day_key():
+    m = {
+        "default_key": "partly_cloudy",
+        "keys_to_file": {"rain": "rain.png"},
+        "rules": [{"condition_id": 500, "key": "rain"}],
+    }
+    w = {"condition_id": 500, "icon": "10n"}
+    assert background_assets.resolve_background_key(w, m) == "rain"
 
 
 def test_resolve_key_dust_before_atmosphere_range():

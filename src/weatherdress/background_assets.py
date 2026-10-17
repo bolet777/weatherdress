@@ -20,30 +20,39 @@ def resolve_background_key(weather, map_data):
     """
     Choisit une clé logique (ex. `rain`, `sunny`) selon les règles du JSON.
     `weather` doit inclure `condition_id` (OpenWeatherMap) et optionnellement `icon`.
+    Si l'icône finit par `n` et que `{clé}_night` est dans `keys_to_file`, cette clé est retenue.
     """
     if not map_data:
         return None
     cid = weather.get("condition_id")
-    if cid is None:
-        return map_data.get("default_key")
     icon = weather.get("icon") or ""
     icon_suffix = icon[-1] if len(icon) >= 1 else None
 
-    for rule in map_data.get("rules", []):
-        if "condition_id" in rule:
-            if cid != rule["condition_id"]:
-                continue
-            if "icon_suffix" in rule:
-                want = rule["icon_suffix"]
-                if icon_suffix != want:
+    key = None
+    if cid is not None:
+        for rule in map_data.get("rules", []):
+            if "condition_id" in rule:
+                if cid != rule["condition_id"]:
                     continue
-            return rule["key"]
-        if "condition_id_range" in rule:
-            lo, hi = rule["condition_id_range"]
-            if lo <= cid <= hi:
-                return rule["key"]
+                if "icon_suffix" in rule:
+                    want = rule["icon_suffix"]
+                    if icon_suffix != want:
+                        continue
+                key = rule["key"]
+                break
+            if "condition_id_range" in rule:
+                lo, hi = rule["condition_id_range"]
+                if lo <= cid <= hi:
+                    key = rule["key"]
+                    break
+    if key is None:
+        key = map_data.get("default_key")
 
-    return map_data.get("default_key")
+    if key and icon_suffix == "n":
+        night_key = f"{key}_night"
+        if night_key in (map_data.get("keys_to_file") or {}):
+            return night_key
+    return key
 
 
 def resolve_background_image_path(images_dir, weather, map_data):
