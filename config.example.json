@@ -42,7 +42,7 @@
   "forecast_hours": 8,
   "forecast_step_hours": 3,
   "identity_on_each_refresh": false,
-  "character_variant_max": 6,
+  "character_variant_max": 10,
   "debug_preview": false,
   "debug_preview_interval_seconds": 5,
   "transit": {
