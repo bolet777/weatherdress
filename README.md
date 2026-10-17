@@ -203,6 +203,8 @@ make test
 | `api_key`          | Clé OpenWeatherMap                               |
 | `fullscreen`       | `true` plein écran (Pi), `false` fenêtre (tests Mac) |
 | `background_color` | Fond : `[R,G,B]` ou `"#rrggbb"` ; optionnel. Le texte UI s’ajuste (clair sur fond sombre). |
+| `circle_background_color` | Médaillon gris en haut (sans photo de fond) : `[R,G,B]` ou `"#rrggbb"`. |
+| `accessories_column` | Optionnel : couleurs des disques accessoires à gauche. `plate_color` = fond du médaillon ; `track_color` = anneau de fond (gris). Format `[R,G,B]`, `[R,G,B,A]` ou `"#rrggbb"` (alpha 255 si absent). |
 | `use_weather_background` | `true` (défaut) : image de fond selon la météo (`images/backgrounds/` + `background_map.json`). `false` : uniquement `background_color`. Voir `docs/background.md`. |
 | `weather_background_alpha` | Opacité de la photo de fond (0–1 ou 0–255). Avec `use_ambient_weather_background`, sert de plafond de base avant assombrissement jour/nuit / nuages. |
 | `use_ambient_weather_background` | `false` (défaut) : inchangé. `true` : couleur sous la photo et alpha dérivés du lever/coucher de soleil (API) et du pourcentage de nuages ; voir `docs/background.md`. |

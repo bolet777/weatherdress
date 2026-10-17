@@ -53,6 +53,40 @@ def _disk_canvas_half_extent(outer_r: int, ring_w: int) -> Tuple[int, int]:
 # Anneau « maintenant » : complet, blanc / neutre (pas de pastille heure)
 CURRENT_RING_RGB = (235, 237, 242)
 
+DEFAULT_ACCESSORIES_PLATE_RGBA = (50, 54, 62, 210)
+DEFAULT_ACCESSORIES_TRACK_RGBA = (120, 125, 135, 200)
+
+
+def _parse_rgba(raw: Any, default: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
+    """``#rrggbb``, ``[R,G,B]`` (alpha 255) ou ``[R,G,B,A]``."""
+    if isinstance(raw, str) and len(raw) == 7 and raw.startswith("#"):
+        try:
+            rgb = tuple(int(raw[i : i + 2], 16) for i in (1, 3, 5))
+            return rgb[0], rgb[1], rgb[2], 255
+        except ValueError:
+            return default
+    if isinstance(raw, (list, tuple)) and len(raw) == 3:
+        return tuple(max(0, min(255, int(c))) for c in raw) + (255,)
+    if isinstance(raw, (list, tuple)) and len(raw) == 4:
+        return tuple(max(0, min(255, int(c))) for c in raw)
+    return default
+
+
+def accessories_column_colors(
+    config: Dict[str, Any],
+) -> Tuple[Tuple[int, int, int, int], Tuple[int, int, int, int]]:
+    """Plateau et piste d’anneau depuis ``config['accessories_column']``."""
+    section = config.get("accessories_column")
+    if not isinstance(section, dict):
+        section = {}
+    plate = _parse_rgba(
+        section.get("plate_color"), DEFAULT_ACCESSORIES_PLATE_RGBA
+    )
+    track = _parse_rgba(
+        section.get("track_color"), DEFAULT_ACCESSORIES_TRACK_RGBA
+    )
+    return plate, track
+
 
 def urgency_pct(hours_from_now: float, forecast_hours: float) -> int:
     """
@@ -407,8 +441,7 @@ def draw_future_accessories_column(
     last_cy = char_rect.bottom - below_last
 
     acc_dir = os.path.join(images_dir, "accessories")
-    plate_rgba = (50, 54, 62, 210)
-    track_rgba = (120, 125, 135, 200)
+    plate_rgba, track_rgba = accessories_column_colors(config)
 
     for i, (kind, acc_id, fut) in enumerate(slots):
         cy = last_cy - (n - 1 - i) * cell_h

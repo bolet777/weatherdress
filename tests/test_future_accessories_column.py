@@ -2,6 +2,8 @@ import pygame
 
 from weatherdress.future_accessories_column import (
     COLUMN_MAX_TOTAL,
+    DEFAULT_ACCESSORIES_PLATE_RGBA,
+    accessories_column_colors,
     draw_future_accessories_column,
     urgency_pct,
     _build_slots,
@@ -50,6 +52,24 @@ def test_build_slots_current_first_then_future_capped():
     assert len(slots) == COLUMN_MAX_TOTAL
     assert kinds == ["current", "current", "future", "future"]
     assert ids == ["a", "b", "u", "v"]
+
+
+def test_accessories_column_colors_defaults():
+    plate, track = accessories_column_colors({})
+    assert plate == DEFAULT_ACCESSORIES_PLATE_RGBA
+    assert track == (120, 125, 135, 200)
+
+
+def test_accessories_column_colors_override():
+    cfg = {
+        "accessories_column": {
+            "plate_color": "#101418",
+            "track_color": [200, 200, 200, 128],
+        }
+    }
+    plate, track = accessories_column_colors(cfg)
+    assert plate == (16, 20, 24, 255)
+    assert track == (200, 200, 200, 128)
 
 
 def test_draw_column_many_items_short_character_no_crash(tmp_path):

@@ -32,6 +32,10 @@
   },
   "background_color": [255, 255, 255],
   "circle_background_color": [230, 230, 230],
+  "accessories_column": {
+    "plate_color": [220, 224, 230, 230],
+    "track_color": [120, 125, 135, 200]
+  },
   "screen_width": 800,
   "screen_height": 480,
   "refresh_minutes": 5,
