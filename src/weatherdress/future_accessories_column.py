@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pygame
 
-from .badges import draw_badge
+from .badges import BADGE_FONT_PX, BADGE_PADDING, draw_badge
 
 COLUMN_MAX_TOTAL = 4
 
@@ -37,6 +37,8 @@ _COLUMN_BADGE_DIR_XY = math.sqrt(0.5)  # cos(π/4), sin(π/4) — unitaire écra
 COLUMN_TO_CHARACTER_GAP_PX = 10
 COLUMN_SCREEN_LEFT_MARGIN_PX = 8
 COLUMN_SCREEN_TOP_MARGIN_PX = 8
+# Rayon extérieur minimal (icône encore lisible dans l’anneau).
+COLUMN_OUTER_R_READABILITY_MIN = 22
 
 
 def _disk_canvas_half_extent(outer_r: int, ring_w: int) -> Tuple[int, int]:
@@ -317,7 +319,7 @@ def draw_future_accessories_column(
     """
     Colonne à gauche du personnage : puces pour accessoires actuels (anneau
     blanc 100 %, sans heure) puis futurs (urgence + pastille). Le bas du dernier
-    disque est aligné sur ``char_rect.bottom`` (bas du sprite).
+    disque (et pastille le cas échéant) ne dépasse pas ``char_rect.bottom``.
     """
     slots = _build_slots(
         current_accessory_ids,
@@ -330,31 +332,86 @@ def draw_future_accessories_column(
     fh = config.get("forecast_hours", 8)
     gutter = 12
     margin_left = COLUMN_SCREEN_LEFT_MARGIN_PX
+    gap_y = 18
+    top_y = COLUMN_SCREEN_TOP_MARGIN_PX
+    h_dispo = max(1, char_rect.bottom - top_y)
+    badge_r = BADGE_FONT_PX // 2 + BADGE_PADDING + 2
+    u = _COLUMN_BADGE_DIR_XY
+
     left_strip_inner = max(40, char_rect.left - margin_left - gutter)
     _base_outer_r = max(22, min(46, left_strip_inner // 2))
-    outer_r = max(1, int(round(_base_outer_r * COLUMN_OUTER_RADIUS_SCALE)))
-    ring_w = max(4, int(round(outer_r * COLUMN_RING_WIDTH_OVER_OUTER_RADIUS)))
-    ring_w = min(ring_w, max(4, outer_r // 2))
+    width_outer_r = max(1, int(round(_base_outer_r * COLUMN_OUTER_RADIUS_SCALE)))
+
+    def _ring_w_for(outer_r: int) -> int:
+        rw = max(4, int(round(outer_r * COLUMN_RING_WIDTH_OVER_OUTER_RADIUS)))
+        return min(rw, max(4, outer_r // 2))
+
+    def _vertical_extents(outer_r: int, ring_w: int, kind: str) -> Tuple[int, int]:
+        _, disk_half = _disk_canvas_half_extent(outer_r, ring_w)
+        above = disk_half
+        below = disk_half
+        if kind == "future":
+            above = max(disk_half, int(round(u * outer_r + badge_r)))
+            below = max(disk_half, int(round(badge_r - u * outer_r)))
+        return above, below
+
+    def _column_fits(outer_r: int, n: int, active_slots) -> bool:
+        if outer_r < 1 or n < 1:
+            return False
+        ring_w = _ring_w_for(outer_r)
+        cell_h = outer_r * 2 + gap_y
+        above_last, below_last = _vertical_extents(
+            outer_r, ring_w, active_slots[n - 1][0]
+        )
+        last_cy = char_rect.bottom - below_last
+        first_cy = last_cy - (n - 1) * cell_h
+        above_first, _ = _vertical_extents(outer_r, ring_w, active_slots[0][0])
+        first_top = first_cy - above_first
+        if first_top < top_y:
+            return False
+        stack_h = (n - 1) * cell_h + above_first + below_last
+        return stack_h <= h_dispo
+
+    def _largest_fitting_outer_r(n: int, active_slots, cap: int) -> int:
+        lo = COLUMN_OUTER_R_READABILITY_MIN
+        hi = max(lo, cap)
+        best = 0
+        for candidate in range(hi, lo - 1, -1):
+            if _column_fits(candidate, n, active_slots):
+                best = candidate
+                break
+        return best
+
+    outer_r = 0
+    while slots:
+        n = len(slots)
+        fit_r = _largest_fitting_outer_r(n, slots, width_outer_r)
+        if fit_r >= COLUMN_OUTER_R_READABILITY_MIN:
+            outer_r = fit_r
+            break
+        slots = slots[:-1]
+
+    if not slots or outer_r < 1:
+        return
+
+    ring_w = _ring_w_for(outer_r)
     inner_pad = 3
     icon_max = max(12, (outer_r - ring_w - inner_pad) * 2 - 4)
-    gap_y = 18
-
     n = len(slots)
     cell_h = outer_r * 2 + gap_y
     _, disk_half = _disk_canvas_half_extent(outer_r, ring_w)
     ideal_cx = char_rect.left - COLUMN_TO_CHARACTER_GAP_PX - disk_half
     col_cx = max(COLUMN_SCREEN_LEFT_MARGIN_PX + disk_half, ideal_cx)
-    y0 = max(
-        COLUMN_SCREEN_TOP_MARGIN_PX + disk_half - outer_r,
-        char_rect.bottom - disk_half - outer_r - (n - 1) * cell_h,
-    )
+
+    _, below_last = _vertical_extents(outer_r, ring_w, slots[n - 1][0])
+    last_cy = char_rect.bottom - below_last
 
     acc_dir = os.path.join(images_dir, "accessories")
     plate_rgba = (50, 54, 62, 210)
     track_rgba = (120, 125, 135, 200)
 
     for i, (kind, acc_id, fut) in enumerate(slots):
-        cy = y0 + outer_r + i * cell_h
+        cy = last_cy - (n - 1 - i) * cell_h
         cx = col_cx
         center = (cx, cy)
 
@@ -391,7 +448,6 @@ def draw_future_accessories_column(
                 hb = int(hour)
             except (TypeError, ValueError):
                 hb = 0
-            u = _COLUMN_BADGE_DIR_XY
             badge_center = (
                 int(round(cx + outer_r * u)),
                 int(round(cy - outer_r * u)),

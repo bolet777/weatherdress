@@ -1,5 +1,8 @@
+import pygame
+
 from weatherdress.future_accessories_column import (
     COLUMN_MAX_TOTAL,
+    draw_future_accessories_column,
     urgency_pct,
     _build_slots,
 )
@@ -47,3 +50,24 @@ def test_build_slots_current_first_then_future_capped():
     assert len(slots) == COLUMN_MAX_TOTAL
     assert kinds == ["current", "current", "future", "future"]
     assert ids == ["a", "b", "u", "v"]
+
+
+def test_draw_column_many_items_short_character_no_crash(tmp_path):
+    """Colonne serrée verticalement : réduction ou retrait d’items sans débordement."""
+    pygame.init()
+    screen = pygame.Surface((800, 480))
+    char_rect = pygame.Rect(220, 90, 120, 140)
+    fut = [
+        {"accessory": "a", "hour": 12, "hours_from_now": 1},
+        {"accessory": "b", "hour": 15, "hours_from_now": 3},
+        {"accessory": "c", "hour": 18, "hours_from_now": 5},
+        {"accessory": "d", "hour": 21, "hours_from_now": 7},
+    ]
+    draw_future_accessories_column(
+        screen,
+        ["cap", "scarf"],
+        fut,
+        char_rect,
+        str(tmp_path),
+        {"forecast_hours": 8},
+    )
