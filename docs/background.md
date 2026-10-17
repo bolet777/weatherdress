@@ -15,6 +15,8 @@ Tout est centralisé dans **`images/backgrounds/background_map.json`** :
 
 Si l’icône finit par `n` et que `{clé}_night` existe dans `keys_to_file`, cette clé de nuit est utilisée (`rain` → `rain_night`, ciel dégagé `800` → `sunny_night`). Sinon la clé de jour est conservée. Une icône sans suffixe `n` reste sur la clé de jour (`800` → `sunny`).
 
+De décembre à mars (date locale), la première clé présente gagne : la nuit `{clé}_winter_night`, `{clé}_night`, `{clé}` ; le jour `{clé}_winter`, puis `{clé}`. Une variante de jour n’est pas utilisée la nuit. Hors de ces mois, seul le repli `_night` s’applique.
+
 Modifier ce JSON **ne nécessite pas** de toucher au code Python : redémarrer l’app suffit (le fichier est relu quand sa date de modification change).
 
 ## Désactiver les images
