@@ -1,4 +1,6 @@
 config.json
+config.json.bak
+.config.json.*.tmp
 cache/
 .env
 __pycache__/
