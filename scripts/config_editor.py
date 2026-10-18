@@ -44,6 +44,43 @@ PASSWORD_PATHS = {"api_key", "transit.stm_api_key"}
 SLIDER_EXACT = {"weather_background_alpha", "ambient_min_day_brightness"}
 SELECT_PATHS = {"units", "language", "layout.weather_mode"}
 
+HELP = {
+    "character_colorkey": (
+        "null = désactivé. Utile seulement pour un sprite sans transparence "
+        "(fond uni à effacer, ex. [255, 0, 255])."
+    ),
+    "weather_background_alpha": "Opacité de la photo de fond : 0 invisible, 1 opaque.",
+    "use_ambient_weather_background": (
+        "Couleur sous la photo et opacité selon l’heure et les nuages."
+    ),
+    "ambient_twilight_minutes": (
+        "Minutes de fondu de chaque côté du lever et du coucher du soleil."
+    ),
+    "ambient_min_day_brightness": (
+        "Luminosité minimale de jour par ciel couvert, entre 0 et 1."
+    ),
+    "refresh_minutes": (
+        "Minutes entre deux lectures de la météo. (redémarrage nécessaire)"
+    ),
+    "fullscreen": "Plein écran sur le Pi. (redémarrage nécessaire)",
+    "screen_width": (
+        "Largeur de la fenêtre en pixels, ignorée en plein écran. (redémarrage nécessaire)"
+    ),
+    "screen_height": (
+        "Hauteur de la fenêtre en pixels, ignorée en plein écran. (redémarrage nécessaire)"
+    ),
+    "debug_preview": (
+        "Météos fictives à la place de l’API. (redémarrage nécessaire)"
+    ),
+}
+RESTART_KEYS = {
+    "fullscreen",
+    "screen_width",
+    "screen_height",
+    "refresh_minutes",
+    "debug_preview",
+}
+
 PAGE_HEAD = """<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -57,8 +94,8 @@ PAGE_HEAD = """<!DOCTYPE html>
   fieldset { border: 1px solid #ccc; margin: 1rem 0; padding: 0.4rem 0.9rem 0.7rem; }
   legend { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 0.25rem; }
   label { display: grid; grid-template-columns: 15rem 1fr; gap: 0.5rem 0.8rem; align-items: center; margin: 0.35rem 0; }
-  label.json, label.secret { align-items: start; }
-  label.json .key, label.secret .key { padding-top: 0.35rem; }
+  label.json, label.secret, label.noted { align-items: start; }
+  label.json .key, label.secret .key, label.noted .key { padding-top: 0.35rem; }
   .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; word-break: break-word; }
   .control input[type="text"], .control input[type="password"], .control input[type="number"], .control select, .control textarea {
     width: 100%; box-sizing: border-box; font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0.28rem 0.4rem;
@@ -461,13 +498,27 @@ def _render_field(path, key, kind, value, fields):
         control = (
             f'<input type="{input_type}" {name} value="{esc(raw)}"{step} spellcheck="false">'
         )
+    note = _field_help(path, key)
+    if note:
+        control += f'<span class="hint">{esc(note)}</span>'
     css = "json" if kind == "json" else "secret" if kind == "password" else "field"
+    if note:
+        css += " noted"
     return (
         f'<label class="{css}">'
         f'<span class="key">{esc(key)}</span>'
         f'<span class="control">{control}</span>'
         "</label>"
     )
+
+
+def _field_help(path, key):
+    text = HELP.get(key, "")
+    if "(redémarrage nécessaire)" not in text and (
+        key in RESTART_KEYS or path.startswith("transit.")
+    ):
+        text = f"{text} (redémarrage nécessaire)".strip()
+    return text
 
 
 def parse_args(argv):
