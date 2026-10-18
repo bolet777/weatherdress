@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import json
 import threading
@@ -50,7 +51,10 @@ def _field_map(config):
     return dict(_walk_fields(config, bool_pair=False))
 
 
-def test_listens_on_localhost_only():
+def test_default_listen_address():
+    args = editor.parse_args([])
+    assert args.host == "127.0.0.1"
+    assert args.port == 8765
     assert editor.HOST == "127.0.0.1"
     assert editor.PORT == 8765
 
@@ -132,11 +136,31 @@ def test_checkbox_last_value_wins():
     assert fields["fullscreen"] == "true"
 
 
+def test_blank_secret_keeps_stored_value():
+    original = {"api_key": "secret", "city": "Montreal,CA"}
+    built, errors = editor.build_config(
+        original, {"api_key": "", "city": "Québec,CA"}
+    )
+    assert errors == []
+    assert built == {"api_key": "secret", "city": "Québec,CA"}
+
+
+def test_typed_secret_replaces_stored_value():
+    built, errors = editor.build_config(
+        {"api_key": "secret"}, {"api_key": "nouveau"}
+    )
+    assert errors == []
+    assert built["api_key"] == "nouveau"
+
+
 def test_form_controls_for_example():
     config = json.loads(EXAMPLE.read_text(encoding="utf-8"))
     page = editor.render_page(config)
-    assert '<input type="password" name="v:api_key"' in page
-    assert '<input type="password" name="v:transit.stm_api_key"' in page
+    assert '<input type="password" name="v:api_key" value=""' in page
+    assert '<input type="password" name="v:transit.stm_api_key" value=""' in page
+    assert "VOTRE_CLE_OPENWEATHERMAP_ICI" not in page
+    assert "VOTRE_CLE_API_STM_ICI" not in page
+    assert "Laisser vide pour conserver la clé actuelle." in page
     assert '<select name="v:units">' in page
     assert '<select name="v:language">' in page
     assert '<option value="fr" selected>fr</option>' in page
@@ -285,6 +309,126 @@ def test_http_restart_success(editor_server, monkeypatch):
     status, body = _post(httpd, [("action", "restart")])
     assert status == 200
     assert "Service weatherdress redémarré." in body
+
+
+def test_secrets_stay_out_of_the_page_after_a_typed_value():
+    page = editor.render_page(
+        {"api_key": "secret-value", "transit": {"stm_api_key": "stm-secret"}},
+        fields={"api_key": "typed-secret", "transit.stm_api_key": "typed-stm"},
+    )
+    assert "secret-value" not in page
+    assert "stm-secret" not in page
+    assert "typed-secret" not in page
+    assert "typed-stm" not in page
+
+
+def test_lan_host_requires_password_file(tmp_path):
+    missing = tmp_path / "editor_password"
+    assert editor.require_editor_password("127.0.0.1", missing) is None
+    try:
+        editor.require_editor_password("0.0.0.0", missing)
+    except ValueError as exc:
+        assert "introuvable" in str(exc)
+    else:
+        raise AssertionError("fichier manquant accepté")
+    missing.write_text("\n", encoding="utf-8")
+    try:
+        editor.require_editor_password("0.0.0.0", missing)
+    except ValueError as exc:
+        assert "vide" in str(exc)
+    else:
+        raise AssertionError("fichier vide accepté")
+    missing.write_text("s3cret\n", encoding="utf-8")
+    assert editor.require_editor_password("0.0.0.0", missing) == "s3cret"
+
+
+def test_main_refuses_to_bind_lan_without_password(monkeypatch, capsys):
+    def missing(host, path=None):
+        raise ValueError("Mot de passe de l'éditeur introuvable : /tmp/editor_password")
+
+    monkeypatch.setattr(editor, "require_editor_password", missing)
+    assert editor.main(["--host", "0.0.0.0", "--port", "8765"]) == 1
+    assert "introuvable" in capsys.readouterr().err
+
+
+def test_main_localhost_skips_password(monkeypatch):
+    seen = {}
+
+    class Dummy:
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    def fake_server(addr, handler):
+        seen["addr"] = addr
+        return Dummy()
+
+    monkeypatch.setattr(editor, "require_editor_password", lambda host, path=None: None)
+    monkeypatch.setattr(editor, "HTTPServer", fake_server)
+    assert editor.main(["--host", "127.0.0.1", "--port", "8765"]) == 0
+    assert seen["addr"] == ("127.0.0.1", 8765)
+    assert editor.EDITOR_PASSWORD is None
+
+
+def _basic(user, password):
+    token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
+    return f"Basic {token}"
+
+
+def test_http_basic_auth(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"api_key": "secret-value", "city": "Montreal,CA"}\n', encoding="utf-8")
+    monkeypatch.setattr(editor, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(editor, "BACKUP_PATH", tmp_path / "config.json.bak")
+    monkeypatch.setattr(editor, "EDITOR_PASSWORD", "s3cret")
+    httpd = HTTPServer(("127.0.0.1", 0), editor.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    port = httpd.server_address[1]
+    url = f"http://127.0.0.1:{port}/"
+    try:
+        with pytest.raises(HTTPError) as missing:
+            urlopen(url)
+        assert missing.value.code == 401
+        assert "Basic" in missing.value.headers.get("WWW-Authenticate", "")
+        wrong = Request(url, headers={"Authorization": _basic("weather", "nope")})
+        with pytest.raises(HTTPError) as rejected:
+            urlopen(wrong)
+        assert rejected.value.code == 401
+        good = Request(url, headers={"Authorization": _basic("ignored", "s3cret")})
+        with urlopen(good) as response:
+            status = response.status
+            body = response.read().decode("utf-8")
+        assert status == 200
+        assert "secret-value" not in body
+        assert 'name="v:api_key" value=""' in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
+
+
+def test_http_blank_secret_is_kept(editor_server):
+    httpd, config_path, backup_path = editor_server
+    original = json.loads(config_path.read_text(encoding="utf-8"))
+    pairs = []
+    for key, value in _walk_fields(original, bool_pair=True):
+        if key in ("v:api_key", "v:transit.stm_api_key"):
+            pairs.append((key, ""))
+        elif key == "v:city":
+            pairs.append((key, "Québec,CA"))
+        else:
+            pairs.append((key, value))
+    pairs.append(("action", "save"))
+    status, _body = _post(httpd, pairs)
+    assert status == 200
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert saved["city"] == "Québec,CA"
+    assert saved["api_key"] == original["api_key"]
+    assert saved["transit"]["stm_api_key"] == original["transit"]["stm_api_key"]
+    assert backup_path.is_file()
 
 
 def test_unknown_path_is_404():

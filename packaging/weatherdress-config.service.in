@@ -1,0 +1,15 @@
+[Unit]
+Description=WeatherDress — éditeur de configuration
+After=network.target
+Wants=network.target
+
+[Service]
+# Mot de passe HTTP Basic : ~/.config/weatherdress/editor_password (compte User=).
+ExecStart=/usr/bin/python3 @INSTALL_DIR@/scripts/config_editor.py --host 0.0.0.0 --port 8765
+WorkingDirectory=@INSTALL_DIR@
+Restart=on-failure
+RestartSec=10
+User=@RUN_USER@
+
+[Install]
+WantedBy=multi-user.target

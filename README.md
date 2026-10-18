@@ -170,7 +170,7 @@ sudo systemctl restart weatherdress
 journalctl -u weatherdress -f
 ```
 
-Pour modifier `config.json` depuis le Mac pendant que le service tourne : [docs/config-editor.md](docs/config-editor.md).
+Pour modifier `config.json` depuis le navigateur : [docs/config-editor.md](docs/config-editor.md).
 
 Si les journaux mentionnent `XDG_RUNTIME_DIR is invalid or not set` : le service généré définit `XDG_RUNTIME_DIR=/run/user/<uid>` et un `ExecStartPre` crée ce répertoire avec les bons droits. Après mise à jour du dépôt, relancer `bash scripts/install.sh` pour régénérer le unit. En complément (kiosk sans session graphique au boot) : `sudo loginctl enable-linger <utilisateur_du_service>` pour que logind maintienne le runtime utilisateur.
 

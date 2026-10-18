@@ -63,9 +63,9 @@ else
   pip3 install "${pip_args[@]}"
 fi
 
-echo "==> Génération du service systemd (répertoire : $INSTALL_DIR, utilisateur : $RUN_USER, uid : $RUN_UID)..."
-if [ ! -f packaging/weatherdress.service.in ]; then
-  echo "Erreur : packaging/weatherdress.service.in introuvable." >&2
+echo "==> Génération des services systemd (répertoire : $INSTALL_DIR, utilisateur : $RUN_USER, uid : $RUN_UID)..."
+if [ ! -f packaging/weatherdress.service.in ] || [ ! -f packaging/weatherdress-config.service.in ]; then
+  echo "Erreur : packaging/weatherdress.service.in ou packaging/weatherdress-config.service.in introuvable." >&2
   exit 1
 fi
 sed \
@@ -74,6 +74,10 @@ sed \
   -e "s|@RUN_HOME@|${RUN_HOME}|g" \
   -e "s|@XDG_RUNTIME_DIR@|${XDG_RUNTIME_DIR_FOR_SERVICE}|g" \
   packaging/weatherdress.service.in | sudo tee /etc/systemd/system/weatherdress.service > /dev/null
+sed \
+  -e "s|@INSTALL_DIR@|${INSTALL_DIR}|g" \
+  -e "s|@RUN_USER@|${RUN_USER}|g" \
+  packaging/weatherdress-config.service.in | sudo tee /etc/systemd/system/weatherdress-config.service > /dev/null
 
 echo "==> Activation et démarrage du service..."
 sudo systemctl daemon-reload
@@ -83,6 +87,21 @@ sudo systemctl start weatherdress
 echo ""
 echo "Service weatherdress démarré."
 echo "Vérifier avec : sudo systemctl status weatherdress"
+
+EDITOR_PASSWORD_FILE="${RUN_HOME}/.config/weatherdress/editor_password"
+sudo systemctl enable weatherdress-config
+if [ -s "$EDITOR_PASSWORD_FILE" ]; then
+  sudo systemctl restart weatherdress-config
+  echo "Éditeur de configuration démarré (port 8765, mot de passe requis)."
+else
+  echo "Éditeur installé, pas démarré : ${EDITOR_PASSWORD_FILE} est absent ou vide."
+  echo "Créer le fichier avec le compte ${RUN_USER}, puis relancer le service :"
+  echo "  mkdir -p ~/.config/weatherdress"
+  echo "  printf '%s\n' 'votre-mot-de-passe' > ~/.config/weatherdress/editor_password"
+  echo "  chmod 600 ~/.config/weatherdress/editor_password"
+  echo "  sudo systemctl restart weatherdress-config"
+  echo "Détail : docs/config-editor.md"
+fi
 if command -v loginctl >/dev/null 2>&1; then
   echo ""
   echo "Si les journaux mentionnent encore XDG_RUNTIME_DIR :"

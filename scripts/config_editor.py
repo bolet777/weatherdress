@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Éditeur de config.json. N'écoute que sur 127.0.0.1:8765.
+"""Éditeur de config.json.
 
-Lancer sur le Pi, ouvrir depuis le Mac via un tunnel SSH.
+Par défaut, écoute sur 127.0.0.1:8765 sans mot de passe.
+Avec --host autre que 127.0.0.1, HTTP Basic est obligatoire.
+Le mot de passe est lu dans ~/.config/weatherdress/editor_password.
 Voir docs/config-editor.md.
 """
 
+import argparse
+import base64
 import html
 import json
 import math
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -22,10 +27,12 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
 BACKUP_PATH = ROOT / "config.json.bak"
 LOCALE_DIR = ROOT / "locale"
+EDITOR_PASSWORD_PATH = Path.home() / ".config" / "weatherdress" / "editor_password"
 
-# Uniquement l'interface locale : les clés API ne doivent pas être servies sur le LAN.
 HOST = "127.0.0.1"
 PORT = 8765
+# None : pas d'authentification (écoute limitée à 127.0.0.1).
+EDITOR_PASSWORD = None
 MAX_BODY = 1_048_576
 
 RAW_JSON_PATHS = {
@@ -50,8 +57,8 @@ PAGE_HEAD = """<!DOCTYPE html>
   fieldset { border: 1px solid #ccc; margin: 1rem 0; padding: 0.4rem 0.9rem 0.7rem; }
   legend { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0 0.25rem; }
   label { display: grid; grid-template-columns: 15rem 1fr; gap: 0.5rem 0.8rem; align-items: center; margin: 0.35rem 0; }
-  label.json { align-items: start; }
-  label.json .key { padding-top: 0.35rem; }
+  label.json, label.secret { align-items: start; }
+  label.json .key, label.secret .key { padding-top: 0.35rem; }
   .key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; word-break: break-word; }
   .control input[type="text"], .control input[type="password"], .control input[type="number"], .control select, .control textarea {
     width: 100%; box-sizing: border-box; font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace; padding: 0.28rem 0.4rem;
@@ -258,7 +265,12 @@ def parse_field(kind, path, original, raw):
         raise ValueError("valeur booléenne attendue.")
     if kind == "number":
         return _parse_number(raw, original)
-    if kind in ("text", "password"):
+    if kind == "password":
+        # Champ vide : la clé déjà enregistrée ne change pas.
+        if raw == "":
+            return original
+        return raw
+    if kind == "text":
         return raw
     if kind == "select":
         if raw not in select_choices(path, original):
@@ -406,7 +418,8 @@ def _render_field(path, key, kind, value, fields):
         )
     elif kind == "password":
         control = (
-            f'<input type="password" {name} value="{esc(raw)}" autocomplete="off" spellcheck="false">'
+            f'<input type="password" {name} value="" autocomplete="new-password" spellcheck="false">'
+            '<span class="hint">Laisser vide pour conserver la clé actuelle.</span>'
         )
     elif kind == "select":
         choices = select_choices(path, value)
@@ -448,13 +461,66 @@ def _render_field(path, key, kind, value, fields):
         control = (
             f'<input type="{input_type}" {name} value="{esc(raw)}"{step} spellcheck="false">'
         )
-    css = "json" if kind == "json" else "field"
+    css = "json" if kind == "json" else "secret" if kind == "password" else "field"
     return (
         f'<label class="{css}">'
         f'<span class="key">{esc(key)}</span>'
         f'<span class="control">{control}</span>'
         "</label>"
     )
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description="Éditeur de config.json.")
+    parser.add_argument(
+        "--host",
+        default=HOST,
+        help="Adresse d'écoute (défaut : 127.0.0.1). Toute autre valeur exige un mot de passe.",
+    )
+    parser.add_argument("--port", type=int, default=PORT, help="Port (défaut : 8765).")
+    return parser.parse_args(argv)
+
+
+def require_editor_password(host, path=None):
+    """Mot de passe HTTP Basic, ou None si l'écoute reste sur 127.0.0.1."""
+    if host == "127.0.0.1":
+        return None
+    path = EDITOR_PASSWORD_PATH if path is None else path
+    if not path.is_file():
+        raise ValueError(
+            f"Mot de passe de l'éditeur introuvable : {path}\n"
+            "Créer le fichier (une ligne) avant d'écouter sur le réseau :\n"
+            "  mkdir -p ~/.config/weatherdress\n"
+            "  printf '%s\\n' 'votre-mot-de-passe' > ~/.config/weatherdress/editor_password\n"
+            "  chmod 600 ~/.config/weatherdress/editor_password"
+        )
+    password = path.read_text(encoding="utf-8").strip()
+    if not password:
+        raise ValueError(f"Le fichier de mot de passe est vide : {path}")
+    return password
+
+
+def basic_password(header):
+    if not header:
+        return None
+    scheme, _, token = header.partition(" ")
+    if scheme.lower() != "basic" or not token.strip():
+        return None
+    try:
+        decoded = base64.b64decode(token.strip(), validate=True).decode("utf-8")
+    except (ValueError, UnicodeDecodeError):
+        return None
+    _user, separator, password = decoded.partition(":")
+    if not separator:
+        return None
+    return password
+
+
+def basic_auth_ok(header, expected):
+    given = basic_password(header)
+    if given is None:
+        return False
+    return secrets.compare_digest(given, expected)
 
 
 def restart_service():
@@ -490,7 +556,26 @@ def restart_service():
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _unauthorized(self):
+        if not EDITOR_PASSWORD:
+            return False
+        if basic_auth_ok(self.headers.get("Authorization"), EDITOR_PASSWORD):
+            return False
+        message = "Authentification requise.\n".encode("utf-8")
+        self.send_response(401)
+        self.send_header(
+            "WWW-Authenticate", 'Basic realm="WeatherDress", charset="UTF-8"'
+        )
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(message)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(message)
+        return True
+
     def do_GET(self):
+        if self._unauthorized():
+            return
         path = self.path.split("?", 1)[0]
         if path == "/favicon.ico":
             self.send_response(204)
@@ -506,6 +591,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_html(200, render_page(config))
 
     def do_POST(self):
+        if self._unauthorized():
+            return
         path = self.path.split("?", 1)[0]
         if path != "/":
             self.send_html(404, render_page(None, notice="Page introuvable.", error=True))
@@ -602,14 +689,33 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
-def main():
+def main(argv=None):
+    global EDITOR_PASSWORD, HOST, PORT
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    if not 1 <= args.port <= 65535:
+        print("Port invalide.", file=sys.stderr)
+        return 1
+    try:
+        password = require_editor_password(args.host)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Lecture du mot de passe impossible : {exc}", file=sys.stderr)
+        return 1
+    HOST = args.host
+    PORT = args.port
+    EDITOR_PASSWORD = password
     try:
         server = HTTPServer((HOST, PORT), Handler)
     except OSError as exc:
         print(f"Impossible d'écouter sur {HOST}:{PORT} : {exc}", file=sys.stderr)
         return 1
     print(f"Éditeur : http://{HOST}:{PORT}", flush=True)
-    print("Tunnel depuis le Mac : ssh -L 8765:127.0.0.1:8765 <utilisateur>@<pi>", flush=True)
+    if password:
+        print("Mot de passe requis (HTTP Basic).", flush=True)
+    else:
+        print("Écoute locale, sans mot de passe.", flush=True)
     print("Arrêt : Ctrl+C", flush=True)
     try:
         server.serve_forever()
