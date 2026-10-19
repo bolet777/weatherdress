@@ -50,6 +50,7 @@ def test_default_file_covers_layout_and_app_keys():
         "screen_height",
         "refresh_minutes",
         "forecast_hours",
+        "identity_on_each_refresh",
         "character_variant_max",
         "debug_preview",
         "debug_preview_interval_seconds",
@@ -57,10 +58,10 @@ def test_default_file_covers_layout_and_app_keys():
         assert key in data
     assert data["api_key"] == "VOTRE_CLE_OPENWEATHERMAP_ICI"
     assert data["transit"]["stm_api_key"] == "VOTRE_CLE_API_STM_ICI"
+    assert data["identity_on_each_refresh"] is False
     for dead in (
         "weather_top_pct",
         "forecast_step_hours",
-        "identity_on_each_refresh",
         "weather_note_font_min",
         "weather_note_font_max",
     ):
@@ -113,6 +114,42 @@ def test_override_of_whole_direction_map_is_not_merged():
     merged = config_file.merge_config(base, override)
     assert merged["transit"]["metro_directions"] == {"Snowdon": "Autre"}
     assert config_file.overrides_only(base, merged) == override
+
+
+def test_unknown_keys_skip_data_dicts_and_can_be_removed():
+    defaults = {
+        "city": "Montreal,CA",
+        "layout": {"weather_mode": "after_character"},
+        "transit": {"bus_stops": {"1": "A"}, "metro_station": "Outremont"},
+    }
+    user = {
+        "city": "Montreal,CA",
+        "forecast_step_hours": 3,
+        "layout": {"weather_mode": "after_character", "weather_top_pct": 0.2},
+        "transit": {
+            "bus_stops": {"1": "A", "9": "Z"},
+            "metro_station": "Outremont",
+            "old_flag": True,
+        },
+    }
+    assert config_file.unknown_key_paths(defaults, user) == [
+        "forecast_step_hours",
+        "layout.weather_top_pct",
+        "transit.old_flag",
+    ]
+    assert config_file.without_unknown_keys(defaults, user) == {
+        "city": "Montreal,CA",
+        "layout": {"weather_mode": "after_character"},
+        "transit": {"bus_stops": {"1": "A", "9": "Z"}, "metro_station": "Outremont"},
+    }
+    assert config_file.delete_key_path(user, "layout.weather_top_pct") is True
+    assert "weather_top_pct" not in user["layout"]
+    assert user["layout"]["weather_mode"] == "after_character"
+    assert config_file.delete_key_path(user, "forecast_step_hours") is True
+    assert "forecast_step_hours" not in user
+    only = {"gone": {"nested": 1}}
+    assert config_file.delete_key_path(only, "gone.nested") is True
+    assert only == {}
 
 
 def test_load_config_without_user_file(tmp_path, monkeypatch):

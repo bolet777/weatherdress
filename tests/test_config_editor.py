@@ -154,6 +154,111 @@ def test_typed_secret_replaces_stored_value():
     assert built["api_key"] == "nouveau"
 
 
+def _leaf_paths(config):
+    found = []
+
+    def walk(obj, prefix):
+        for key, value in obj.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if editor.field_kind(path, value) == "section":
+                walk(value, path)
+            else:
+                found.append(path)
+
+    walk(config, "")
+    return found
+
+
+def test_fields_labels_cover_every_default_key():
+    config = json.loads(DEFAULT.read_text(encoding="utf-8"))
+    missing = []
+    bad_labels = []
+    for path in _leaf_paths(config):
+        meta = editor.FIELDS.get(path)
+        if not isinstance(meta, dict) or not meta.get("label") or not meta.get("help"):
+            missing.append(path)
+            continue
+        count = len(meta["label"].split())
+        if not 2 <= count <= 5:
+            bad_labels.append((path, meta["label"]))
+    assert missing == []
+    assert bad_labels == []
+    assert editor.FIELDS["transit.card_title_font_px"]["label"] == "Taille du titre"
+    assert editor.FIELDS["layout.character_center_x_pct"]["label"] == "Position horizontale"
+    assert editor.FIELDS["layout.character_center_y_offset_px"]["label"] == "Décalage vertical"
+    assert editor.FIELDS["transit.stm_api_key"]["label"] == "Clé STM"
+    identity = editor.FIELDS["identity_on_each_refresh"]
+    assert identity["label"] == "Nouveau personnage à chaque lecture"
+    assert identity["help"].startswith("Activé :")
+    assert "Désactivé :" in identity["help"]
+
+
+def test_boolean_help_says_active_and_inactive():
+    config = json.loads(DEFAULT.read_text(encoding="utf-8"))
+
+    def walk(obj, prefix):
+        for key, value in obj.items():
+            path = f"{prefix}.{key}" if prefix else key
+            if editor.field_kind(path, value) == "section":
+                walk(value, path)
+                continue
+            help_text = editor.FIELDS[path]["help"]
+            assert "true =" not in help_text
+            assert "false =" not in help_text
+            if editor.field_kind(path, value) == "bool":
+                assert "Activé :" in help_text
+                assert "Désactivé :" in help_text
+
+    walk(config, "")
+
+
+def test_labels_show_title_and_technical_name():
+    config = json.loads(DEFAULT.read_text(encoding="utf-8"))
+    page = editor.render_page(config, defaults=config)
+    assert '<span class="title">Taille du titre</span>' in page
+    assert '<span class="tech">card_<wbr>title_<wbr>font_<wbr>px</span>' in page
+    assert '<span class="title">Ville affichée</span>' in page
+    assert '<span class="tech">city</span>' in page
+    assert "Obsolètes" not in page
+
+
+def test_unknown_key_renders_as_obsolete_and_is_kept_on_save():
+    defaults = {
+        "city": "Montreal,CA",
+        "layout": {"weather_mode": "after_character"},
+        "transit": {"bus_stops": {"1": "A"}},
+    }
+    merged = {
+        "city": "Montreal,CA",
+        "forecast_step_hours": 3,
+        "layout": {"weather_mode": "after_character", "weather_top_pct": 0.2},
+        "transit": {"bus_stops": {"1": "A", "9": "Z"}},
+    }
+    page = editor.render_page(merged, defaults=defaults)
+    assert '<h2 class="section">Obsolètes</h2>' in page
+    assert "N’est plus utilisée par l’application" in page
+    assert '<span class="title">forecast_<wbr>step_<wbr>hours</span>' in page
+    assert '<span class="title">layout.<wbr>weather_<wbr>top_<wbr>pct</span>' in page
+    assert 'value="delete:forecast_step_hours"' in page
+    assert 'value="delete:layout.weather_top_pct"' in page
+    assert "delete:transit.bus_stops" not in page
+    assert ">Supprimer</button>" in page
+    built, errors = editor.build_config(
+        merged,
+        {
+            "city": "Québec,CA",
+            "layout.weather_mode": "after_character",
+            "transit.bus_stops": '{\n  "1": "A",\n  "9": "Z"\n}',
+        },
+        defaults=defaults,
+    )
+    assert errors == []
+    assert built["city"] == "Québec,CA"
+    assert built["forecast_step_hours"] == 3
+    assert built["layout"]["weather_top_pct"] == 0.2
+    assert built["transit"]["bus_stops"]["9"] == "Z"
+
+
 def test_form_controls_for_default():
     config = json.loads(DEFAULT.read_text(encoding="utf-8"))
     page = editor.render_page(config, defaults=config)
@@ -514,6 +619,30 @@ def test_http_missing_config_json_shows_defaults_and_writes_diffs(tmp_path, monk
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=2)
+
+
+def test_http_delete_removes_only_the_obsolete_key(editor_server):
+    httpd, config_path, backup_path = editor_server
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["forecast_step_hours"] = 3
+    config["layout"]["weather_top_pct"] = 0.2
+    original = json.dumps(config, indent=2) + "\n"
+    config_path.write_text(original, encoding="utf-8")
+    status, body = _post(httpd, [("v:city", "Québec,CA"), ("action", "delete:forecast_step_hours")])
+    assert status == 200
+    assert "Clé retirée : forecast_step_hours." in body
+    assert "Québec,CA" in body
+    assert 'value="delete:forecast_step_hours"' not in body
+    assert 'data-path="layout.weather_top_pct"' in body
+    saved = json.loads(config_path.read_text(encoding="utf-8"))
+    assert "forecast_step_hours" not in saved
+    assert saved["layout"]["weather_top_pct"] == 0.2
+    assert saved["city"] == config["city"]
+    assert backup_path.is_file()
+    refused, refused_body = _post(httpd, [("action", "delete:city")])
+    assert refused == 200
+    assert "fait encore partie" in refused_body
+    assert "city" in json.loads(config_path.read_text(encoding="utf-8"))
 
 
 def test_unknown_path_is_404():

@@ -55,6 +55,45 @@ def test_clean_config_strips_values_equal_to_default(tmp_path, monkeypatch, caps
     assert backup_path.read_text(encoding="utf-8") == original
 
 
+def test_clean_config_drops_unknown_keys_and_lists_them(tmp_path, monkeypatch, capsys):
+    defaults = {
+        "city": "Montreal,CA",
+        "layout": {"weather_mode": "after_character"},
+        "transit": {"bus_stops": {"1": "A"}, "metro_station": "Outremont"},
+    }
+    user = {
+        "city": "Québec,CA",
+        "forecast_step_hours": 3,
+        "layout": {"weather_mode": "after_character", "weather_top_pct": 0.2},
+        "transit": {
+            "bus_stops": {"1": "A", "9": "Z"},
+            "metro_station": "Outremont",
+            "old_flag": True,
+        },
+    }
+    default_path = tmp_path / "config.default.json"
+    config_path = tmp_path / "config.json"
+    backup_path = tmp_path / "config.json.bak"
+    default_path.write_text(json.dumps(defaults), encoding="utf-8")
+    config_path.write_text(json.dumps(user), encoding="utf-8")
+    monkeypatch.setattr(clean.config_file, "DEFAULT_CONFIG_PATH", default_path)
+    monkeypatch.setattr(clean.config_file, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(clean.config_file, "BACKUP_PATH", backup_path)
+    assert clean.main() == 0
+    output = capsys.readouterr().out
+    assert "Clé obsolète retirée : forecast_step_hours" in output
+    assert "Clé obsolète retirée : layout.weather_top_pct" in output
+    assert "Clé obsolète retirée : transit.old_flag" in output
+    assert "9" not in output
+    assert "nettoyé" in output
+    assert json.loads(config_path.read_text(encoding="utf-8")) == {
+        "city": "Québec,CA",
+        "transit": {"bus_stops": {"1": "A", "9": "Z"}},
+    }
+    assert clean.main() == 0
+    assert "déjà" in capsys.readouterr().out
+
+
 def test_clean_config_missing_user_file(tmp_path, monkeypatch, capsys):
     default_path = tmp_path / "config.default.json"
     default_path.write_text('{"city": "Montreal,CA"}\n', encoding="utf-8")

@@ -2,17 +2,21 @@
 
 Page pour modifier la configuration depuis le navigateur, pendant que l’application tourne sur le Pi. L’application ne relit pas `config.json` toute seule. Après un enregistrement, redémarrer le service (bouton **Redémarrer**, ou `sudo systemctl restart weatherdress`).
 
-La page affiche toutes les clés de `config.default.json`, avec les surcharges de `config.json` par-dessus. Si `config.json` n’existe pas, le formulaire montre les défauts.
+La page affiche toutes les clés de `config.default.json`, avec les surcharges de `config.json` par-dessus. Si `config.json` n’existe pas, le formulaire montre les défauts. Chaque champ a un libellé en français, et le nom technique en petit en dessous.
+
+Une clé présente dans `config.json` mais absente de `config.default.json` apparaît dans la section **Obsolètes**, avec la mention « N’est plus utilisée par l’application » et un bouton **Supprimer**. Les arrêts de bus et les directions de métro ne sont pas concernés : ce sont des données, pas des clés de réglage.
 
 Un point bleu à côté du libellé signale une valeur différente du défaut. Le bouton **↺** remet le champ à cette valeur (pour une clé API, il revient au placeholder). L’enregistrement n’écrit dans `config.json` que les différences. L’ancien fichier est copié vers `config.json.bak`, puis remplacé de façon atomique.
 
 Les champs `api_key` et `stm_api_key` restent vides. Laisser vide conserve la clé déjà enregistrée.
 
-Si `config.json` contient encore tout le fichier par défaut, une fois sur le Pi :
+Si `config.json` contient encore tout le fichier par défaut, ou des clés qui n’existent plus, une fois sur le Pi :
 
 ```bash
 python3 scripts/clean_config.py
 ```
+
+Le script retire les valeurs identiques au défaut et les clés absentes de `config.default.json`. Ces clés sont listées dans la console.
 
 ## Réseau domestique
 

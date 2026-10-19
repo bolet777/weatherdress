@@ -49,210 +49,364 @@ PASSWORD_PATHS = {"api_key", "transit.stm_api_key"}
 SLIDER_EXACT = {"weather_background_alpha", "ambient_min_day_brightness"}
 SELECT_PATHS = {"units", "language", "layout.weather_mode"}
 
-HELP = {
-    "api_key": (
-        "Clé OpenWeatherMap. Une clé refusée remplace l’écran par un message d’erreur."
-    ),
-    "city": (
-        "Ville demandée à OpenWeatherMap, format Ville,PAYS (ex. Montreal,CA). "
-        "Elle choisit la météo affichée, donc le fond, la tenue et le texte."
-    ),
-    "language": (
-        "Langue des textes de l’interface et des descriptions météo. "
-        "fr ou en, selon les fichiers de locale/."
-    ),
-    "units": (
-        "Unité de la température affichée. metric = °C, imperial = °F. "
-        "Les seuils de tenue sont en Celsius."
-    ),
-    "use_weather_background": (
-        "Photo de fond selon la météo, recadrée plein écran. "
-        "Désactivé : couleur unie et médaillon circulaire derrière le personnage."
-    ),
-    "weather_background_alpha": (
-        "Opacité de l’image de fond météo, de 0 à 1. "
-        "1 = photo opaque, plus bas = la couleur derrière transparaît "
-        "(couleur d’ambiance si elle est activée, sinon background_color)."
-    ),
-    "refresh_minutes": (
-        "Minutes entre deux lectures de la météo. "
-        "Plus bas = température, tenue et accessoires futurs revus plus souvent."
-    ),
-    "forecast_hours": (
-        "Horizon des accessoires futurs, en heures. "
-        "Plus grand = pastilles plus lointaines, et l’anneau « bientôt » s’étale sur une plus longue fenêtre."
-    ),
-    "use_ambient_weather_background": (
-        "Couleur sous la photo et opacité selon le lever, le coucher et les nuages. "
-        "Désactivé : fond fixe (background_color) et opacité fixe."
-    ),
-    "ambient_twilight_minutes": (
-        "Minutes de fondu de chaque côté du lever et du coucher. "
-        "Plus grand = aube et crépuscule plus longs."
-    ),
-    "ambient_min_day_brightness": (
-        "Luminosité minimale en plein jour par ciel couvert, de 0 à 1. "
-        "Plus haut = le midi nuageux reste plus clair."
-    ),
-    "ambient_night_bg": (
-        "Couleur sous la photo la nuit, [R, G, B] de 0 à 255. "
-        "Visible quand l’ambiance est activée."
-    ),
-    "ambient_day_clear_bg": (
-        "Couleur sous la photo en journée par ciel dégagé, [R, G, B]. "
-        "Visible quand l’ambiance est activée."
-    ),
-    "ambient_day_overcast_bg": (
-        "Couleur mélangée sous la photo quand il fait jour et nuageux, [R, G, B]. "
-        "Visible quand l’ambiance est activée."
-    ),
-    "background_color": (
-        "Couleur de fond [R, G, B] sans photo, et sous une photo translucide si l’ambiance est désactivée. "
-        "Un fond sombre affiche en clair le texte des écrans d’attente."
-    ),
-    "circle_background_color": (
-        "Couleur du médaillon circulaire derrière le personnage, [R, G, B]. "
-        "Visible seulement sans photo de fond météo."
-    ),
-    "character_colorkey": (
-        "null = désactivé. [R, G, B] rend cette couleur transparente sur le personnage et les accessoires. "
-        "Utile pour un PNG sans canal alpha ; tout pixel de cette couleur disparaît."
-    ),
-    "fullscreen": (
-        "true = plein écran à la résolution du moniteur, curseur masqué. "
-        "false = fenêtre de screen_width × screen_height."
-    ),
-    "screen_width": "Largeur de la fenêtre en pixels. Ignorée en plein écran.",
-    "screen_height": "Hauteur de la fenêtre en pixels. Ignorée en plein écran.",
-    "debug_preview": (
-        "true = météos fictives à la place de l’API, pour enchaîner tenues et fonds. "
-        "false = météo réelle."
-    ),
-    "debug_preview_interval_seconds": (
-        "Secondes entre deux météos fictives. Plus bas = défilement plus rapide "
-        "(minimum effectif 0,5). Utilisé quand l’aperçu est activé."
-    ),
-    "identity_on_each_refresh": (
-        "true = nouveau personnage à chaque lecture météo. "
-        "false = personnage tiré une fois au démarrage et gardé."
-    ),
-    "character_variant_max": (
-        "Numéro max des sprites tirés au sort (fichiers …1.png, …2.png, …). "
-        "0 ou moins = toutes les variantes présentes sur le disque."
-    ),
-    "layout.character_center_x_pct": (
-        "Position horizontale du centre du personnage, de 0 (bord gauche) à 1 (bord droit). "
-        "Plus haut = plus à droite."
-    ),
-    "layout.character_center_y_offset_px": (
-        "Décalage vertical du personnage par rapport au milieu de l’écran, en pixels. "
-        "Négatif = plus haut, positif = plus bas."
-    ),
-    "layout.character_max_width_pct": (
-        "Largeur max du personnage, en fraction de la largeur d’écran (0–1). "
-        "Plus haut = sprite plus large, sans dépasser la taille du fichier."
-    ),
-    "layout.character_max_height_pct": (
-        "Hauteur max du personnage, en fraction de la hauteur d’écran (0–1). "
-        "Plus haut = sprite plus grand, sans dépasser la taille du fichier."
-    ),
-    "layout.weather_mode": (
-        "after_character = texte météo à droite du personnage, centré verticalement sur lui. "
-        "screen_right = texte aligné au bord droit, centré verticalement."
-    ),
-    "layout.weather_screen_right_margin_pct": (
-        "Marge entre le texte météo et le bord droit, en fraction de la largeur (0–1, au moins 16 px). "
-        "Plus haut = texte plus à gauche, moins de place pour la description."
-    ),
-    "layout.weather_gap_after_character_px": (
-        "Espace en pixels entre le personnage et le texte météo, en mode after_character. "
-        "Plus haut = texte plus éloigné du sprite."
-    ),
-    "layout.weather_transit_vertical_offset_px": (
-        "Décalage vertical en pixels de la colonne météo et transport, après centrage sur le personnage. "
-        "Négatif = remonte l’ensemble, positif = le descend."
-    ),
-    "layout.weather_temp_font_min": (
-        "Taille minimale de la température, en pixels. "
-        "La taille suit la hauteur d’écran et ne descend pas sous ce plancher."
-    ),
-    "layout.weather_temp_font_max": (
-        "Taille maximale de la température, en pixels. "
-        "Sur un grand écran, augmenter cette valeur agrandit le chiffre."
-    ),
-    "layout.weather_desc_font_min": (
-        "Taille minimale de la description météo, en pixels. "
-        "Plancher utilisé quand l’écran est petit."
-    ),
-    "layout.weather_desc_font_max": (
-        "Taille maximale de la description météo, en pixels. "
-        "Plafond utilisé quand l’écran est grand."
-    ),
-    "accessories_column.plate_color": (
-        "Couleur du disque derrière chaque icône d’accessoire, [R, G, B] ou [R, G, B, A]. "
-        "Le 4e nombre (0–255) est l’opacité ; sans lui, le disque est opaque."
-    ),
-    "accessories_column.track_color": (
-        "Couleur de l’anneau de fond autour des accessoires, [R, G, B] ou [R, G, B, A]. "
-        "L’arc d’urgence (vert bientôt, rouge plus tard) se dessine par-dessus."
-    ),
-    "transit.stm_api_key": (
-        "Clé API STM pour les prochains bus. "
-        "Vide ou placeholder : les cartes bus restent sans horaire. "
-        "La variable STM_API_KEY, si elle est définie, est utilisée à la place."
-    ),
-    "transit.gtfs_url": (
-        "Adresse du zip GTFS STM, source des horaires métro. "
-        "Le panneau transport s’affiche quand cette adresse, la station et le numéro de ligne sont renseignés."
-    ),
-    "transit.bus_stops": (
-        "Arrêts de bus suivis, objet JSON {identifiant STM: libellé}. "
-        "Le libellé est le sous-titre de la carte ; l’identifiant sert à lire les passages."
-    ),
-    "transit.metro_station": (
-        "Nom de station cherché dans le GTFS (extrait du nom, sans tenir compte de la casse). "
-        "Affiché en titre de carte, précédé de « Station »."
-    ),
-    "transit.metro_route_id": (
-        "Identifiant GTFS de la ligne de métro (ex. 5 pour la bleue). "
-        "Seuls les passages de cette ligne sont affichés."
-    ),
-    "transit.metro_line_color": (
-        "Couleur du bandeau gauche des cartes métro, [R, G, B]. "
-        "Le bandeau bus reste bleu foncé."
-    ),
-    "transit.metro_directions": (
-        "Libellés des directions, objet JSON {trip_headsign GTFS exact: texte court}. "
-        "Le texte s’affiche sous la station, précédé de « Direction »."
-    ),
-    "transit.transit_refresh_seconds": (
-        "Secondes entre deux lectures des horaires bus et métro. "
-        "Plus bas = les minutes affichées se mettent à jour plus souvent."
-    ),
-    "transit.transit_alternate_seconds": (
-        "Secondes avant de passer à l’arrêt de bus et à la direction métro suivants. "
-        "0 = toutes les cartes en même temps. Plus haut = chaque carte reste plus longtemps."
-    ),
-    "transit.card_title_font_px": (
-        "Taille du titre des cartes (bus ou station), en pixels, bornée de 10 à 48. "
-        "Plus grand = titre plus gros et carte plus haute."
-    ),
-    "transit.card_subtitle_font_px": (
-        "Taille du sous-titre (arrêt ou direction), en pixels, bornée de 8 à 40. "
-        "Plus grand = carte plus haute."
-    ),
-    "transit.card_times_font_px": (
-        "Taille des horaires (« 5min »), en pixels, bornée de 10 à 56. "
-        "Plus grand = minutes plus lisibles et carte plus haute."
-    ),
-    "transit.strip_mode_letter_font_px": (
-        "Taille de la lettre B ou M dans le bandeau, en pixels, bornée de 12 à 72. "
-        "Elle s’affiche seulement si l’icône bus ou métro est absente."
-    ),
-    "transit.card_height_px": (
-        "Hauteur forcée des cartes bus et métro, en pixels (48–200). "
-        "null = hauteur calculée à partir des polices."
-    ),
+FIELDS = {
+    "api_key": {
+        "label": "Clé météo",
+        "help": "Clé OpenWeatherMap. Une clé refusée remplace l’écran par un message d’erreur.",
+    },
+    "city": {
+        "label": "Ville affichée",
+        "help": (
+            "Ville demandée à OpenWeatherMap, format Ville,PAYS (ex. Montreal,CA). "
+            "Elle choisit la météo affichée, donc le fond, la tenue et le texte."
+        ),
+    },
+    "language": {
+        "label": "Langue des textes",
+        "help": (
+            "Langue des textes de l’interface et des descriptions météo. "
+            "fr ou en, selon les fichiers de locale/."
+        ),
+    },
+    "units": {
+        "label": "Unité de température",
+        "help": (
+            "Unité de la température affichée. metric = °C, imperial = °F. "
+            "Les seuils de tenue sont en Celsius."
+        ),
+    },
+    "use_weather_background": {
+        "label": "Photo de fond",
+        "help": (
+            "Activé : photo de fond selon la météo, recadrée plein écran. "
+            "Désactivé : couleur unie et médaillon circulaire derrière le personnage."
+        ),
+    },
+    "weather_background_alpha": {
+        "label": "Opacité du fond",
+        "help": (
+            "Opacité de l’image de fond météo, de 0 à 1. "
+            "1 = photo opaque, plus bas = la couleur derrière transparaît "
+            "(couleur d’ambiance si elle est activée, sinon background_color)."
+        ),
+    },
+    "refresh_minutes": {
+        "label": "Intervalle de lecture",
+        "help": (
+            "Minutes entre deux lectures de la météo. "
+            "Plus bas = température, tenue et accessoires futurs revus plus souvent."
+        ),
+    },
+    "forecast_hours": {
+        "label": "Horizon de prévision",
+        "help": (
+            "Horizon des accessoires futurs, en heures. "
+            "Plus grand = pastilles plus lointaines, et l’anneau « bientôt » s’étale sur une plus longue fenêtre."
+        ),
+    },
+    "use_ambient_weather_background": {
+        "label": "Fond selon l’heure",
+        "help": (
+            "Activé : couleur sous la photo et opacité selon le lever, le coucher et les nuages. "
+            "Désactivé : fond fixe (background_color) et opacité fixe."
+        ),
+    },
+    "ambient_twilight_minutes": {
+        "label": "Durée du crépuscule",
+        "help": (
+            "Minutes de fondu de chaque côté du lever et du coucher. "
+            "Plus grand = aube et crépuscule plus longs."
+        ),
+    },
+    "ambient_min_day_brightness": {
+        "label": "Luminosité minimale",
+        "help": (
+            "Luminosité minimale en plein jour par ciel couvert, de 0 à 1. "
+            "Plus haut = le midi nuageux reste plus clair."
+        ),
+    },
+    "ambient_night_bg": {
+        "label": "Couleur de nuit",
+        "help": (
+            "Couleur sous la photo la nuit, [R, G, B] de 0 à 255. "
+            "Visible quand l’ambiance est activée."
+        ),
+    },
+    "ambient_day_clear_bg": {
+        "label": "Couleur ciel dégagé",
+        "help": (
+            "Couleur sous la photo en journée par ciel dégagé, [R, G, B]. "
+            "Visible quand l’ambiance est activée."
+        ),
+    },
+    "ambient_day_overcast_bg": {
+        "label": "Couleur ciel couvert",
+        "help": (
+            "Couleur mélangée sous la photo quand il fait jour et nuageux, [R, G, B]. "
+            "Visible quand l’ambiance est activée."
+        ),
+    },
+    "background_color": {
+        "label": "Couleur de fond",
+        "help": (
+            "Couleur de fond [R, G, B] sans photo, et sous une photo translucide si l’ambiance est désactivée. "
+            "Un fond sombre affiche en clair le texte des écrans d’attente."
+        ),
+    },
+    "circle_background_color": {
+        "label": "Couleur du médaillon",
+        "help": (
+            "Couleur du médaillon circulaire derrière le personnage, [R, G, B]. "
+            "Visible seulement sans photo de fond météo."
+        ),
+    },
+    "character_colorkey": {
+        "label": "Couleur transparente",
+        "help": (
+            "null = désactivé. [R, G, B] rend cette couleur transparente sur le personnage et les accessoires. "
+            "Utile pour un PNG sans canal alpha ; tout pixel de cette couleur disparaît."
+        ),
+    },
+    "fullscreen": {
+        "label": "Plein écran",
+        "help": (
+            "Activé : plein écran à la résolution du moniteur, curseur masqué. "
+            "Désactivé : fenêtre de screen_width × screen_height."
+        ),
+    },
+    "screen_width": {
+        "label": "Largeur de fenêtre",
+        "help": "Largeur de la fenêtre en pixels. Ignorée en plein écran.",
+    },
+    "screen_height": {
+        "label": "Hauteur de fenêtre",
+        "help": "Hauteur de la fenêtre en pixels. Ignorée en plein écran.",
+    },
+    "debug_preview": {
+        "label": "Météo fictive",
+        "help": (
+            "Activé : météos fictives à la place de l’API, pour enchaîner tenues et fonds. "
+            "Désactivé : météo réelle."
+        ),
+    },
+    "debug_preview_interval_seconds": {
+        "label": "Vitesse de l’aperçu",
+        "help": (
+            "Secondes entre deux météos fictives. Plus bas = défilement plus rapide "
+            "(minimum effectif 0,5). Utilisé quand l’aperçu est activé."
+        ),
+    },
+    "identity_on_each_refresh": {
+        "label": "Nouveau personnage à chaque lecture",
+        "help": (
+            "Activé : un nouveau personnage est tiré à chaque lecture météo. "
+            "Désactivé : le personnage tiré au démarrage reste affiché."
+        ),
+    },
+    "character_variant_max": {
+        "label": "Nombre de variantes",
+        "help": (
+            "Numéro max des sprites tirés au sort (fichiers …1.png, …2.png, …). "
+            "0 ou moins = toutes les variantes présentes sur le disque."
+        ),
+    },
+    "layout.character_center_x_pct": {
+        "label": "Position horizontale",
+        "help": (
+            "Position horizontale du centre du personnage, de 0 (bord gauche) à 1 (bord droit). "
+            "Plus haut = plus à droite."
+        ),
+    },
+    "layout.character_center_y_offset_px": {
+        "label": "Décalage vertical",
+        "help": (
+            "Décalage vertical du personnage par rapport au milieu de l’écran, en pixels. "
+            "Négatif = plus haut, positif = plus bas."
+        ),
+    },
+    "layout.character_max_width_pct": {
+        "label": "Largeur du personnage",
+        "help": (
+            "Largeur max du personnage, en fraction de la largeur d’écran (0–1). "
+            "Plus haut = sprite plus large, sans dépasser la taille du fichier."
+        ),
+    },
+    "layout.character_max_height_pct": {
+        "label": "Hauteur du personnage",
+        "help": (
+            "Hauteur max du personnage, en fraction de la hauteur d’écran (0–1). "
+            "Plus haut = sprite plus grand, sans dépasser la taille du fichier."
+        ),
+    },
+    "layout.weather_mode": {
+        "label": "Emplacement du texte",
+        "help": (
+            "after_character = texte météo à droite du personnage, centré verticalement sur lui. "
+            "screen_right = texte aligné au bord droit, centré verticalement."
+        ),
+    },
+    "layout.weather_screen_right_margin_pct": {
+        "label": "Marge de droite",
+        "help": (
+            "Marge entre le texte météo et le bord droit, en fraction de la largeur (0–1, au moins 16 px). "
+            "Plus haut = texte plus à gauche, moins de place pour la description."
+        ),
+    },
+    "layout.weather_gap_after_character_px": {
+        "label": "Écart avec le personnage",
+        "help": (
+            "Espace en pixels entre le personnage et le texte météo, en mode after_character. "
+            "Plus haut = texte plus éloigné du sprite."
+        ),
+    },
+    "layout.weather_transit_vertical_offset_px": {
+        "label": "Décalage de la colonne",
+        "help": (
+            "Décalage vertical en pixels de la colonne météo et transport, après centrage sur le personnage. "
+            "Négatif = remonte l’ensemble, positif = le descend."
+        ),
+    },
+    "layout.weather_temp_font_min": {
+        "label": "Taille min. température",
+        "help": (
+            "Taille minimale de la température, en pixels. "
+            "La taille suit la hauteur d’écran et ne descend pas sous ce plancher."
+        ),
+    },
+    "layout.weather_temp_font_max": {
+        "label": "Taille max. température",
+        "help": (
+            "Taille maximale de la température, en pixels. "
+            "Sur un grand écran, augmenter cette valeur agrandit le chiffre."
+        ),
+    },
+    "layout.weather_desc_font_min": {
+        "label": "Taille min. description",
+        "help": (
+            "Taille minimale de la description météo, en pixels. "
+            "Plancher utilisé quand l’écran est petit."
+        ),
+    },
+    "layout.weather_desc_font_max": {
+        "label": "Taille max. description",
+        "help": (
+            "Taille maximale de la description météo, en pixels. "
+            "Plafond utilisé quand l’écran est grand."
+        ),
+    },
+    "accessories_column.plate_color": {
+        "label": "Couleur du disque",
+        "help": (
+            "Couleur du disque derrière chaque icône d’accessoire, [R, G, B] ou [R, G, B, A]. "
+            "Le 4e nombre (0–255) est l’opacité ; sans lui, le disque est opaque."
+        ),
+    },
+    "accessories_column.track_color": {
+        "label": "Couleur de l’anneau",
+        "help": (
+            "Couleur de l’anneau de fond autour des accessoires, [R, G, B] ou [R, G, B, A]. "
+            "L’arc d’urgence (vert bientôt, rouge plus tard) se dessine par-dessus."
+        ),
+    },
+    "transit.stm_api_key": {
+        "label": "Clé STM",
+        "help": (
+            "Clé API STM pour les prochains bus. "
+            "Vide ou placeholder : les cartes bus restent sans horaire. "
+            "La variable STM_API_KEY, si elle est définie, est utilisée à la place."
+        ),
+    },
+    "transit.gtfs_url": {
+        "label": "Source des horaires",
+        "help": (
+            "Adresse du zip GTFS STM, source des horaires métro. "
+            "Le panneau transport s’affiche quand cette adresse, la station et le numéro de ligne sont renseignés."
+        ),
+    },
+    "transit.bus_stops": {
+        "label": "Arrêts de bus",
+        "help": (
+            "Arrêts de bus suivis, objet JSON {identifiant STM: libellé}. "
+            "Le libellé est le sous-titre de la carte ; l’identifiant sert à lire les passages."
+        ),
+    },
+    "transit.metro_station": {
+        "label": "Station de métro",
+        "help": (
+            "Nom de station cherché dans le GTFS (extrait du nom, sans tenir compte de la casse). "
+            "Affiché en titre de carte, précédé de « Station »."
+        ),
+    },
+    "transit.metro_route_id": {
+        "label": "Ligne de métro",
+        "help": (
+            "Identifiant GTFS de la ligne de métro (ex. 5 pour la bleue). "
+            "Seuls les passages de cette ligne sont affichés."
+        ),
+    },
+    "transit.metro_line_color": {
+        "label": "Couleur de la ligne",
+        "help": (
+            "Couleur du bandeau gauche des cartes métro, [R, G, B]. "
+            "Le bandeau bus reste bleu foncé."
+        ),
+    },
+    "transit.metro_directions": {
+        "label": "Noms des directions",
+        "help": (
+            "Libellés des directions, objet JSON {trip_headsign GTFS exact: texte court}. "
+            "Le texte s’affiche sous la station, précédé de « Direction »."
+        ),
+    },
+    "transit.transit_refresh_seconds": {
+        "label": "Fréquence des horaires",
+        "help": (
+            "Secondes entre deux lectures des horaires bus et métro. "
+            "Plus bas = les minutes affichées se mettent à jour plus souvent."
+        ),
+    },
+    "transit.transit_alternate_seconds": {
+        "label": "Rotation des cartes",
+        "help": (
+            "Secondes avant de passer à l’arrêt de bus et à la direction métro suivants. "
+            "0 = toutes les cartes en même temps. Plus haut = chaque carte reste plus longtemps."
+        ),
+    },
+    "transit.card_title_font_px": {
+        "label": "Taille du titre",
+        "help": (
+            "Taille du titre des cartes (bus ou station), en pixels, bornée de 10 à 48. "
+            "Plus grand = titre plus gros et carte plus haute."
+        ),
+    },
+    "transit.card_subtitle_font_px": {
+        "label": "Taille du sous-titre",
+        "help": (
+            "Taille du sous-titre (arrêt ou direction), en pixels, bornée de 8 à 40. "
+            "Plus grand = carte plus haute."
+        ),
+    },
+    "transit.card_times_font_px": {
+        "label": "Taille des horaires",
+        "help": (
+            "Taille des horaires (« 5min »), en pixels, bornée de 10 à 56. "
+            "Plus grand = minutes plus lisibles et carte plus haute."
+        ),
+    },
+    "transit.strip_mode_letter_font_px": {
+        "label": "Lettre du bandeau",
+        "help": (
+            "Taille de la lettre B ou M dans le bandeau, en pixels, bornée de 12 à 72. "
+            "Elle s’affiche seulement si l’icône bus ou métro est absente."
+        ),
+    },
+    "transit.card_height_px": {
+        "label": "Hauteur des cartes",
+        "help": (
+            "Hauteur forcée des cartes bus et métro, en pixels (48–200). "
+            "null = hauteur calculée à partir des polices."
+        ),
+    },
 }
 
 _GEAR = (
@@ -345,22 +499,28 @@ PAGE_HEAD = """<!DOCTYPE html>
   .badge svg { width: 22px; height: 22px; }
   .head h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
   .head p { margin: 0.12rem 0 0; color: #8b98ad; font-size: 0.92rem; }
-  .settings { padding: 0.35rem 1.25rem 0.4rem; }
+  .settings { padding: 0.35rem 1.25rem 0.4rem; min-width: 0; }
   .section {
     margin: 1.15rem 0 0.15rem; font-size: 0.72rem; font-weight: 700;
     letter-spacing: 0.07em; text-transform: uppercase; color: #8b98ad;
   }
   .section:first-child { margin-top: 0.7rem; }
   .row {
-    display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    gap: 0.75rem 1.25rem; align-items: center;
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 0.45rem 1.25rem;
     padding: 0.72rem 0; border-bottom: 1px solid #253042;
   }
-  .row.json { align-items: start; }
+  .row.json { align-items: flex-start; }
   .row.json .name { padding-top: 0.45rem; }
-  .name { display: flex; align-items: center; gap: 0.45rem; font-weight: 650; min-width: 0; }
-  .name > span:first-child { overflow-wrap: anywhere; }
-  .help { position: relative; display: inline-flex; flex: none; }
+  .name {
+    display: flex; align-items: flex-start; gap: 0.45rem;
+    flex: 1 1 12rem; min-width: min(100%, 12rem);
+  }
+  .label-text { display: flex; flex-direction: column; gap: 0.08rem; min-width: 0; flex: 1; }
+  .title { font-weight: 650; overflow-wrap: break-word; }
+  .tech { color: #8b98ad; font-size: 0.75rem; font-weight: 450; overflow-wrap: break-word; }
+  .control { flex: 2 1 16rem; min-width: min(100%, 16rem); }
+  .help { position: relative; display: inline-flex; flex: none; margin-top: 0.12rem; }
   .help-btn {
     width: 16px; height: 16px; border-radius: 50%; padding: 0;
     border: 1px solid #3d4f66; background: transparent; color: #8b98ad;
@@ -376,7 +536,8 @@ PAGE_HEAD = """<!DOCTYPE html>
   }
   .help:hover .help-pop, .help:focus-within .help-pop, .help.open .help-pop { display: block; }
   .control input[type="text"], .control input[type="password"], .control input[type="number"], .control select, .control textarea {
-    width: 100%; background: #0f1623; color: #e6edf5; border: 1px solid #314158;
+    width: 100%; max-width: 100%; min-width: 0;
+    background: #0f1623; color: #e6edf5; border: 1px solid #314158;
     border-radius: 8px; padding: 0.48rem 0.7rem; font: inherit;
   }
   .control textarea {
@@ -421,9 +582,9 @@ PAGE_HEAD = """<!DOCTYPE html>
   .switch input:checked + .knob { background: #2f81f7; }
   .switch input:checked + .knob:before { transform: translateX(18px); }
   .switch input:focus-visible + .knob { box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.35); }
-  .slider { display: flex; align-items: center; gap: 0.75rem; }
+  .slider { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
   .slider input[type="range"] {
-    flex: 1; width: auto; height: 22px; margin: 0; background: transparent;
+    flex: 1 1 auto; width: auto; min-width: 0; height: 22px; margin: 0; background: transparent;
     -webkit-appearance: none; appearance: none;
   }
   .slider input[type="range"]:focus { outline: none; }
@@ -441,7 +602,7 @@ PAGE_HEAD = """<!DOCTYPE html>
     width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 3px solid #2f81f7;
   }
   .control .slider input.unit { width: 4.6rem; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
-  .color-field { display: flex; align-items: center; gap: 0.6rem; }
+  .color-field { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; min-width: 0; }
   .color-field input[type="color"] {
     width: 42px; height: 36px; padding: 3px; flex: none; border: 1px solid #314158;
     border-radius: 8px; background: #0f1623; cursor: pointer;
@@ -464,7 +625,7 @@ PAGE_HEAD = """<!DOCTYPE html>
   .msg.ok { color: #3dd68c; }
   .msg.err { color: #ff7b72; }
   ul.msg { padding-left: 1.1rem; }
-  .actions { display: flex; gap: 0.55rem; flex: none; }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.55rem; flex: none; }
   .actions button {
     font: inherit; border-radius: 8px; padding: 0.48rem 0.95rem; cursor: pointer;
   }
@@ -473,17 +634,27 @@ PAGE_HEAD = """<!DOCTYPE html>
   .actions .secondary { background: transparent; color: #e6edf5; border: 1px solid #314158; }
   .actions .secondary:hover { border-color: #8b98ad; }
   .mod-dot {
-    width: 7px; height: 7px; border-radius: 50%; flex: none;
+    width: 7px; height: 7px; margin-top: 0.45rem; border-radius: 50%; flex: none;
     background: transparent;
   }
   .row.modified .mod-dot { background: #2f81f7; }
   .reset {
-    margin-left: auto; border: 0; background: transparent; color: #8b98ad;
+    margin-left: auto; margin-top: 0.05rem; flex: none;
+    border: 0; background: transparent; color: #8b98ad;
     font: 16px/1 system-ui, sans-serif; cursor: pointer; padding: 0 0.1rem;
   }
   .reset:hover, .reset:focus-visible { color: #5aa2ff; }
+  .obsolete-control {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 0.5rem 0.8rem;
+  }
+  .obsolete-note { margin: 0; color: #e6c07b; font-size: 0.92rem; flex: 1 1 12rem; }
+  .delete {
+    flex: none; background: transparent; color: #ff7b72; border: 1px solid #7a3e3e;
+    border-radius: 8px; padding: 0.4rem 0.75rem; font: inherit; cursor: pointer;
+  }
+  .delete:hover { background: #3a2224; }
   @media (max-width: 600px) {
-    .row { grid-template-columns: 1fr; gap: 0.4rem; }
     .bar { flex-direction: column; align-items: stretch; }
     .actions { justify-content: flex-end; }
   }
@@ -600,8 +771,9 @@ function setRowValue(row, value) {
   if (named) named.value = value;
 }
 function syncRow(row) {
-  var flag = row.querySelector(".reset-flag");
   var kind = row.getAttribute("data-kind");
+  if (kind === "obsolete") return;
+  var flag = row.querySelector(".reset-flag");
   if (kind === "password") {
     var typed = rowValue(row);
     if (typed) {
@@ -825,8 +997,25 @@ def _apply_dict(obj, prefix, fields, errors, defaults, resets):
     built = {}
     for key, value in obj.items():
         path = f"{prefix}.{key}" if prefix else key
+        if _is_unknown(path, defaults):
+            built[key] = copy.deepcopy(value)
+            continue
         built[key] = _apply_value(path, value, fields, errors, defaults, resets)
     return built
+
+
+def _is_unknown(path, defaults):
+    """Clé absente de config.default.json. Les dictionnaires de données ne comptent pas."""
+    if not isinstance(defaults, dict):
+        return False
+    for data_path in config_file.REPLACE_PATHS:
+        if path == data_path or path.startswith(data_path + "."):
+            return False
+    try:
+        config_file.value_at(defaults, path)
+    except KeyError:
+        return True
+    return False
 
 
 def _apply_value(path, value, fields, errors, defaults, resets):
@@ -912,29 +1101,42 @@ def _render_messages(notice, error, errors):
 
 def _render_settings(config, fields, defaults):
     grouped = {name: [] for name in _SECTION_ORDER}
-    for item in _collect_fields(config, ""):
+    rows, obsolete = _collect_fields(config, "", defaults)
+    for item in rows:
         grouped[_section_name(item[0])].append(item)
     chunks = []
     for name in _SECTION_ORDER:
-        rows = grouped[name]
-        if not rows:
+        section_rows = grouped[name]
+        if not section_rows:
             continue
         chunks.append(f'<h2 class="section">{esc(name)}</h2>')
-        for path, key, kind, value in rows:
+        for path, key, kind, value in section_rows:
             chunks.append(_render_field(path, key, kind, value, fields, defaults))
+    if obsolete:
+        chunks.append('<h2 class="section">Obsolètes</h2>')
+        for path, _key, _value in obsolete:
+            chunks.append(_render_obsolete(path))
     return "".join(chunks)
 
 
-def _collect_fields(obj, prefix):
+def _collect_fields(obj, prefix, defaults):
     found = []
+    obsolete = []
+    if not isinstance(obj, dict):
+        return found, obsolete
     for key, value in obj.items():
         path = f"{prefix}.{key}" if prefix else key
+        if _is_unknown(path, defaults):
+            obsolete.append((path, key, value))
+            continue
         kind = field_kind(path, value)
         if kind == "section":
-            found.extend(_collect_fields(value, path))
+            sub, extra = _collect_fields(value, path, defaults)
+            found.extend(sub)
+            obsolete.extend(extra)
         else:
             found.append((path, key, kind, value))
-    return found
+    return found, obsolete
 
 
 def _section_name(path):
@@ -1101,14 +1303,51 @@ def _render_field(path, key, kind, value, fields, defaults):
     return (
         f"<div {attrs}>"
         f'<div class="name"><span class="mod-dot" title="Valeur différente du défaut"></span>'
-        f"<span>{esc(key)}</span>{_help_button(path, key)}{reset_html}</div>"
+        f"{_label_html(path, key)}{_help_button(path)}{reset_html}</div>"
         f'<div class="control">{flag}{control}</div>'
         "</div>"
     )
 
 
-def _help_button(path, key):
-    text = _field_help(path, key)
+def _render_obsolete(path):
+    return (
+        f'<div class="row obsolete" data-path="{esc(path)}" data-kind="obsolete">'
+        f'<div class="name">{_label_html(path, path)}</div>'
+        '<div class="control obsolete-control">'
+        '<p class="obsolete-note">N’est plus utilisée par l’application</p>'
+        f'<button type="submit" class="delete" name="action" value="delete:{esc(path)}">'
+        "Supprimer</button>"
+        "</div></div>"
+    )
+
+
+def _soft_key(name):
+    """Autorise un retour à la ligne après _ ou . , pas au milieu d’un mot."""
+    chunks = []
+    for index, part in enumerate(str(name).split("_")):
+        if index:
+            chunks.append("_<wbr>")
+        dotted = part.split(".")
+        for dot_index, piece in enumerate(dotted):
+            if dot_index:
+                chunks.append(".<wbr>")
+            chunks.append(esc(piece))
+    return "".join(chunks)
+
+
+def _label_html(path, key):
+    meta = FIELDS.get(path) or {}
+    if meta.get("label"):
+        title = esc(meta["label"])
+        tech = f'<span class="tech">{_soft_key(key)}</span>'
+    else:
+        title = _soft_key(key)
+        tech = ""
+    return f'<span class="label-text"><span class="title">{title}</span>{tech}</span>'
+
+
+def _help_button(path):
+    text = _field_help(path)
     if not text:
         return ""
     return (
@@ -1119,8 +1358,9 @@ def _help_button(path, key):
     )
 
 
-def _field_help(path, key):
-    return HELP.get(path) or HELP.get(key, "")
+def _field_help(path):
+    meta = FIELDS.get(path) or {}
+    return meta.get("help", "")
 
 
 def parse_args(argv):
@@ -1226,6 +1466,68 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(message)
         return True
 
+    def _delete_obsolete(self, target, fields):
+        if not re.fullmatch(r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*", target or ""):
+            self.send_html(200, render_page(None, notice="Chemin invalide.", error=True))
+            return
+        defaults, _config, load_error = load_layers()
+        if load_error:
+            self.send_html(200, render_page(None, notice=load_error, error=True))
+            return
+        if not CONFIG_PATH.is_file():
+            self.send_html(
+                200,
+                render_page(
+                    _config,
+                    fields=fields,
+                    notice="config.json absent.",
+                    error=True,
+                    defaults=defaults,
+                ),
+            )
+            return
+        user, error = config_file.read_json_object(CONFIG_PATH)
+        if error:
+            self.send_html(200, render_page(None, notice=error, error=True))
+            return
+        if target not in config_file.unknown_key_paths(defaults, user):
+            self.send_html(
+                200,
+                render_page(
+                    _config,
+                    fields=fields,
+                    notice="Cette clé fait encore partie de la configuration.",
+                    error=True,
+                    defaults=defaults,
+                ),
+            )
+            return
+        config_file.delete_key_path(user, target)
+        try:
+            save_config(user)
+        except (OSError, ValueError, TypeError) as exc:
+            self.send_html(
+                200,
+                render_page(
+                    _config,
+                    fields=fields,
+                    errors=[f"Écriture impossible : {exc}"],
+                    defaults=defaults,
+                ),
+            )
+            return
+        saved_defaults, saved, saved_error = load_layers()
+        self.send_html(
+            200,
+            render_page(
+                saved if saved_error is None else _config,
+                fields=fields,
+                notice=saved_error or f"Clé retirée : {target}.",
+                error=bool(saved_error),
+                defaults=saved_defaults if saved_error is None else defaults,
+            ),
+        )
+
     def do_GET(self):
         if self._unauthorized():
             return
@@ -1259,6 +1561,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_html(
                 400, render_page(None, notice="Encodage de la requête illisible.", error=True)
             )
+            return
+        if action.startswith("delete:"):
+            self._delete_obsolete(action[len("delete:"):], fields)
             return
         if action == "restart":
             ok, message = restart_service()

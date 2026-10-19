@@ -86,6 +86,82 @@ def value_at(config, path):
     return current
 
 
+def unknown_key_paths(defaults, user):
+    """Chemins de user absents de defaults.
+
+    Un objet inconnu est listé une fois, pas ses enfants. Les entrées des
+    dictionnaires de données (REPLACE_PATHS) ne sont pas des clés obsolètes.
+    """
+    found = []
+    _collect_unknown(defaults, user, "", found)
+    return found
+
+
+def _collect_unknown(defaults, user, path, found):
+    if path in REPLACE_PATHS or not isinstance(user, dict) or not isinstance(defaults, dict):
+        return
+    for key, value in user.items():
+        child = f"{path}.{key}" if path else key
+        if key not in defaults:
+            found.append(child)
+            continue
+        _collect_unknown(defaults[key], value, child, found)
+
+
+def without_unknown_keys(defaults, user):
+    """Copie de user sans les clés absentes de defaults."""
+    if not isinstance(user, dict):
+        return copy.deepcopy(user)
+    return _drop_unknown(defaults, user, "")
+
+
+def _drop_unknown(defaults, user, path):
+    if path in REPLACE_PATHS or not isinstance(user, dict) or not isinstance(defaults, dict):
+        return copy.deepcopy(user)
+    out = {}
+    for key, value in user.items():
+        if key not in defaults:
+            continue
+        child = f"{path}.{key}" if path else key
+        if (
+            isinstance(value, dict)
+            and isinstance(defaults[key], dict)
+            and child not in REPLACE_PATHS
+        ):
+            stripped = _drop_unknown(defaults[key], value, child)
+            if stripped:
+                out[key] = stripped
+        else:
+            out[key] = copy.deepcopy(value)
+    return out
+
+
+def delete_key_path(config, path):
+    """Retire path. Les dictionnaires parents devenus vides sont retirés aussi."""
+    if not isinstance(config, dict) or not path:
+        return False
+    parts = path.split(".")
+    parents = []
+    node = config
+    for part in parts[:-1]:
+        child = node.get(part) if isinstance(node, dict) else None
+        if not isinstance(child, dict):
+            return False
+        parents.append((node, part))
+        node = child
+    leaf = parts[-1]
+    if not isinstance(node, dict) or leaf not in node:
+        return False
+    del node[leaf]
+    for parent, key in reversed(parents):
+        child = parent.get(key)
+        if isinstance(child, dict) and not child:
+            del parent[key]
+        else:
+            break
+    return True
+
+
 def read_json_object(path: Path):
     """(objet, None) ou (None, message). Le fichier absent est une erreur."""
     if not path.is_file():

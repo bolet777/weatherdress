@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Retire de config.json les valeurs identiques à config.default.json.
 
+Retire aussi les clés absentes du fichier par défaut, et les liste.
 À lancer une fois sur le Pi si config.json est encore une copie complète.
 Copie l'ancien fichier vers config.json.bak avant de réécrire.
 """
@@ -27,12 +28,16 @@ def main():
     if error:
         print(f"Erreur : {error}", file=sys.stderr)
         return 1
+    removed = config_file.unknown_key_paths(defaults, user)
+    stripped = config_file.without_unknown_keys(defaults, user)
     cleaned = config_file.overrides_only(
-        defaults, config_file.merge_config(defaults, user)
+        defaults, config_file.merge_config(defaults, stripped)
     )
     if cleaned == user:
         print("config.json ne contient déjà que les surcharges.")
         return 0
+    for key_path in removed:
+        print(f"Clé obsolète retirée : {key_path}")
     config_file.save_json_file(path, cleaned, config_file.BACKUP_PATH)
     print("config.json nettoyé. Copie précédente : config.json.bak.")
     return 0

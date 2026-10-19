@@ -1,8 +1,7 @@
 def identity_on_each_refresh(config):
-    """
-    Nouveau couple genre / variante à chaque lecture météo.
+    """Nouveau personnage à chaque lecture météo, quel que soit l'intervalle.
 
-    ``true`` : nouveau personnage à chaque lecture.
-    ``false`` ou clé absente : personnage tiré une fois au démarrage et gardé.
+    Activé : un nouveau personnage est tiré à chaque lecture.
+    Désactivé ou clé absente : le personnage tiré au démarrage reste affiché.
     """
     return config.get("identity_on_each_refresh") is True

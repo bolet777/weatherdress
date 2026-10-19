@@ -138,7 +138,7 @@ Si `config.json` est encore une copie complète de l’ancien modèle, une fois 
 python3 scripts/clean_config.py
 ```
 
-Le script retire les valeurs identiques à `config.default.json` et garde l’ancien fichier dans `config.json.bak`.
+Le script retire les valeurs identiques à `config.default.json`, retire les clés qui n’y figurent plus (elles sont listées dans la console) et garde l’ancien fichier dans `config.json.bak`.
 
 Le service démarre automatiquement au boot. Le unit systemd est **généré** à partir de `packaging/weatherdress.service.in` avec le répertoire courant du clone (`WorkingDirectory`, `PYTHONPATH=…/src`), l’utilisateur graphique (`User`, `XAUTHORITY`) et `python3 -m weatherdress.main`. Lancer l’installation **depuis le répertoire du clone** (après `cd` dans ce dossier). En général : `sudo bash scripts/install.sh` depuis le compte qui possède le clone (ex. `weather`) — `SUDO_USER` sert alors à remplir `User=`. Si vous installez en root sans `SUDO_USER`, définir explicitement `WEATHERDRESS_USER=weather` (ou l’utilisateur qui lance la session X11).
 
@@ -272,7 +272,7 @@ weatherdress/
 │   ├── gitsync.sh       # sur le Pi : wrapper vers launch.sh (ex. cron)
 │   ├── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
 │   ├── config_editor.py # page web pour les surcharges
-│   └── clean_config.py  # retire de config.json les valeurs égales au défaut
+│   └── clean_config.py  # retire surcharges égales au défaut et clés obsolètes
 ├── packaging/
 │   └── weatherdress.service.in   # modèle ; le .service installé est généré par install.sh
 ├── locale/              # fichiers JSON par langue (fr, en, …)
