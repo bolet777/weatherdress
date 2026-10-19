@@ -1,4 +1,4 @@
-"""Racine du dépôt : config.json, images/, locale/ au niveau du clone."""
+"""Racine du dépôt : config.json, config.default.json, images/, locale/."""
 
 from pathlib import Path
 

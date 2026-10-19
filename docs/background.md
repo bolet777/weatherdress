@@ -42,7 +42,7 @@ Avec **`use_ambient_weather_background`: `true`**, l’app calcule une **couleur
 - **`weather_background_alpha`** reste le **plafond de base** (0–1 ou 0–255) ; l’ambiance peut réduire l’opacité la nuit ou par temps très couvert.
 - **`ambient_twilight_minutes`** : largeur des transitions autour du lever et du coucher (défaut 45).
 - **`ambient_min_day_brightness`** : luminosité minimale en plein jour quand les nuages sont à 100 % (évite un midi entièrement noir).
-- **`ambient_night_bg`**, **`ambient_day_clear_bg`**, **`ambient_day_overcast_bg`** : couleurs cibles `[R,G,B]` ou `"#rrggbb"` (voir `config.example.json`).
+- **`ambient_night_bg`**, **`ambient_day_clear_bg`**, **`ambient_day_overcast_bg`** : couleurs cibles `[R,G,B]` ou `"#rrggbb"` (voir `config.default.json`).
 
 Sans cette option, le comportement reste : `background_color` sous la photo et `weather_background_alpha` fixe.
 

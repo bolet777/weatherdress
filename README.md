@@ -38,14 +38,19 @@ make install
 # équivalent : pip install -r requirements-dev.txt
 ```
 
-Créer `config.json` à partir du modèle, renseigner la clé et la ville :
+L’application lit `config.default.json`, puis applique `config.json` par-dessus s’il existe. Ce second fichier ne contient que les valeurs à changer (clé, ville, plein écran). Sans `config.json`, l’app démarre avec les défauts.
 
 ```bash
-cp config.example.json config.json
-# Éditer config.json : api_key, city, etc.
+cat > config.json << 'EOF'
+{
+  "api_key": "VOTRE_CLE_OPENWEATHERMAP",
+  "city": "Montreal,CA",
+  "fullscreen": false
+}
+EOF
 ```
 
-**Pour le développement sur Mac**, mettre `"fullscreen": false` dans `config.json` pour obtenir une **fenêtre** redimensionnable au lieu du plein écran (sur le Raspberry Pi, on garde en général `"fullscreen": true`).
+**Pour le développement sur Mac**, `"fullscreen": false` ouvre une **fenêtre** redimensionnable au lieu du plein écran (sur le Raspberry Pi, le défaut est `"fullscreen": true`).
 
 Ajouter les images sous `images/` (voir [Images attendues](#images-attendues) ci-dessous).
 
@@ -122,11 +127,19 @@ Elles sont superposées sur le personnage — prévoir un fond transparent.
 
 ```bash
 # Sur le Pi, dans le répertoire du projet :
-cp config.example.json config.json
-nano config.json   # renseigner api_key et city
+# config.json : uniquement les surcharges (clé, ville, …)
+nano config.json
 
 bash scripts/install.sh
 ```
+
+Si `config.json` est encore une copie complète de l’ancien modèle, une fois après mise à jour :
+
+```bash
+python3 scripts/clean_config.py
+```
+
+Le script retire les valeurs identiques à `config.default.json` et garde l’ancien fichier dans `config.json.bak`.
 
 Le service démarre automatiquement au boot. Le unit systemd est **généré** à partir de `packaging/weatherdress.service.in` avec le répertoire courant du clone (`WorkingDirectory`, `PYTHONPATH=…/src`), l’utilisateur graphique (`User`, `XAUTHORITY`) et `python3 -m weatherdress.main`. Lancer l’installation **depuis le répertoire du clone** (après `cd` dans ce dossier). En général : `sudo bash scripts/install.sh` depuis le compte qui possède le clone (ex. `weather`) — `SUDO_USER` sert alors à remplir `User=`. Si vous installez en root sans `SUDO_USER`, définir explicitement `WEATHERDRESS_USER=weather` (ou l’utilisateur qui lance la session X11).
 
@@ -200,6 +213,8 @@ make test
 
 ## config.json
 
+`config.default.json` (suivi par git) contient toutes les clés, avec un placeholder pour `api_key` et `transit.stm_api_key`. `config.json` est optionnel et non commité : il ne garde que les surcharges. Les objets imbriqués (`layout`, `accessories_column`, `transit`) sont fusionnés clé par clé. `transit.bus_stops` et `transit.metro_directions` sont remplacés en entier.
+
 | Clé                | Description                                      |
 |--------------------|--------------------------------------------------|
 | `api_key`          | Clé OpenWeatherMap                               |
@@ -256,12 +271,14 @@ weatherdress/
 │   ├── uninstall.sh     # suppression du service sur le Pi
 │   ├── launch.sh        # sur le Pi : git pull + restart systemd
 │   ├── gitsync.sh       # sur le Pi : wrapper vers launch.sh (ex. cron)
-│   └── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
+│   ├── launch_macos.sh  # sur le Mac : lance l’app (venv si présent)
+│   ├── config_editor.py # page web pour les surcharges
+│   └── clean_config.py  # retire de config.json les valeurs égales au défaut
 ├── packaging/
 │   └── weatherdress.service.in   # modèle ; le .service installé est généré par install.sh
 ├── locale/              # fichiers JSON par langue (fr, en, …)
-├── config.json          # (non commité — créer depuis config.example.json)
-├── config.example.json  # référence
+├── config.json          # optionnel, non commité — surcharges seulement
+├── config.default.json  # défauts suivis par git
 ├── pytest.ini           # pythonpath = src pour les tests
 ├── Makefile
 ├── requirements.txt

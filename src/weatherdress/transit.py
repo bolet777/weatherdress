@@ -78,9 +78,9 @@ def resolve_stm_api_key(transit_config: dict) -> tuple[str, str | None]:
         )
     if from_cfg and _is_stm_api_key_placeholder(from_cfg):
         return "", (
-            "[transit] Bus : transit.stm_api_key est encore le placeholder du "
-            "config.example.json — renseigner la clé STM (GTFS-RT trip updates) "
-            "sur le Pi dans config.json, ou définir STM_API_KEY."
+            "[transit] Bus : transit.stm_api_key est encore le placeholder de "
+            "config.default.json — renseigner la clé STM (GTFS-RT trip updates) "
+            "dans config.json, ou définir STM_API_KEY."
         )
     return "", (
         "[transit] Bus : aucune clé STM (transit.stm_api_key dans config.json "

@@ -1,6 +1,9 @@
 """
 Paramètres de mise en page (personnage + bloc météo).
-Toute clé peut être surchargée via `layout` dans config.json.
+
+config.default.json fournit chaque clé au démarrage. `layout` dans
+config.json ne garde que les surcharges. Une clé absente des deux
+fichiers retombe sur DEFAULT_LAYOUT.
 """
 
 DEFAULT_LAYOUT = {

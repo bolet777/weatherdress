@@ -5,7 +5,7 @@ from .paths import LOCALES_DIR
 
 _LOCALES_DIR = str(LOCALES_DIR)
 
-# Si `language` est absent de config.json (anciens fichiers), on reste cohérent avec config.example.json
+# Si `language` est absent (anciens fichiers), on reste cohérent avec config.default.json
 DEFAULT_LANGUAGE = "fr"
 
 

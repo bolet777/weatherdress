@@ -1,5 +1,4 @@
 import ctypes
-import json
 import os
 import sys
 import threading
@@ -14,18 +13,8 @@ from . import identity_config
 from . import outfit
 from . import transit as transit_module
 from . import weather
-from .paths import CONFIG_PATH, IMAGES_DIR
-
-
-def load_config():
-    if not CONFIG_PATH.is_file():
-        print(
-            "Erreur : config.json introuvable. "
-            "Copier config.example.json vers config.json et renseigner la clé API."
-        )
-        sys.exit(1)
-    with open(CONFIG_PATH) as f:
-        return json.load(f)
+from .config_file import load_config
+from .paths import IMAGES_DIR
 
 
 def _prepare_app_desktop_name(config):

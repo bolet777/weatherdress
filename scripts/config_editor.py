@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Éditeur de config.json.
 
+Affiche config.default.json fusionné avec config.json.
+L'enregistrement n'écrit que les valeurs différentes du défaut.
 Par défaut, écoute sur 127.0.0.1:8765 sans mot de passe.
 Avec --host autre que 127.0.0.1, HTTP Basic est obligatoire.
 Le mot de passe est lu dans ~/.config/weatherdress/editor_password.
@@ -9,23 +11,26 @@ Voir docs/config-editor.md.
 
 import argparse
 import base64
+import copy
 import html
 import json
 import math
-import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
-import tempfile
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "src"))
+
+from weatherdress import config_file
+
 CONFIG_PATH = ROOT / "config.json"
 BACKUP_PATH = ROOT / "config.json.bak"
+DEFAULT_CONFIG_PATH = config_file.DEFAULT_CONFIG_PATH
 LOCALE_DIR = ROOT / "locale"
 EDITOR_PASSWORD_PATH = Path.home() / ".config" / "weatherdress" / "editor_password"
 
@@ -243,6 +248,10 @@ HELP = {
     "transit.strip_mode_letter_font_px": (
         "Taille de la lettre B ou M dans le bandeau, en pixels, bornée de 12 à 72. "
         "Elle s’affiche seulement si l’icône bus ou métro est absente."
+    ),
+    "transit.card_height_px": (
+        "Hauteur forcée des cartes bus et métro, en pixels (48–200). "
+        "null = hauteur calculée à partir des polices."
     ),
 }
 
@@ -463,6 +472,16 @@ PAGE_HEAD = """<!DOCTYPE html>
   .actions .primary:hover { background: #4b94f8; }
   .actions .secondary { background: transparent; color: #e6edf5; border: 1px solid #314158; }
   .actions .secondary:hover { border-color: #8b98ad; }
+  .mod-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex: none;
+    background: transparent;
+  }
+  .row.modified .mod-dot { background: #2f81f7; }
+  .reset {
+    margin-left: auto; border: 0; background: transparent; color: #8b98ad;
+    font: 16px/1 system-ui, sans-serif; cursor: pointer; padding: 0 0.1rem;
+  }
+  .reset:hover, .reset:focus-visible { color: #5aa2ff; }
   @media (max-width: 600px) {
     .row { grid-template-columns: 1fr; gap: 0.4rem; }
     .bar { flex-direction: column; align-items: stretch; }
@@ -476,7 +495,7 @@ PAGE_HEAD = """<!DOCTYPE html>
   <span class="badge">""" + _GEAR + """</span>
   <div>
     <h1>Configuration</h1>
-    <p>Fichier config.json. Les changements s’appliquent après le redémarrage du service.</p>
+    <p>Défauts de config.default.json, surcharges de config.json. L’enregistrement n’écrit que les différences. Redémarrer le service pour appliquer.</p>
   </div>
 </header>
 """
@@ -536,85 +555,118 @@ document.querySelectorAll(".help-btn").forEach(function (btn) {
 document.addEventListener("click", function () {
   document.querySelectorAll(".help.open").forEach(function (el) { el.classList.remove("open"); });
 });
+function rowValue(row) {
+  var kind = row.getAttribute("data-kind");
+  if (kind === "bool") {
+    var box = row.querySelector("input[type=checkbox]");
+    return box && box.checked ? "true" : "false";
+  }
+  if (kind === "password") {
+    var secret = row.querySelector(".secret-field input");
+    return secret ? secret.value : "";
+  }
+  if (kind === "slider") return row.querySelector("input[type=range]").value;
+  if (kind === "color") return row.querySelector("input[type=color]").value;
+  if (kind === "json") return row.querySelector("textarea").value;
+  var named = row.querySelector("[name^='v:']");
+  return named ? named.value : "";
+}
+function setRowValue(row, value) {
+  var kind = row.getAttribute("data-kind");
+  if (kind === "bool") {
+    row.querySelector("input[type=checkbox]").checked = value === "true";
+    return;
+  }
+  if (kind === "slider") {
+    var range = row.querySelector("input[type=range]");
+    var num = row.querySelector("input.unit");
+    range.value = value;
+    if (num) num.value = value;
+    range.dispatchEvent(new Event("input"));
+    return;
+  }
+  if (kind === "color") {
+    var picker = row.querySelector("input[type=color]");
+    var hex = row.querySelector("input.hex");
+    if (picker) picker.value = value;
+    if (hex) hex.value = value.toUpperCase();
+    return;
+  }
+  if (kind === "json") {
+    row.querySelector("textarea").value = value;
+    return;
+  }
+  var named = row.querySelector("input[name^='v:'], select[name^='v:'], textarea[name^='v:']");
+  if (named) named.value = value;
+}
+function syncRow(row) {
+  var flag = row.querySelector(".reset-flag");
+  var kind = row.getAttribute("data-kind");
+  if (kind === "password") {
+    var typed = rowValue(row);
+    if (typed) {
+      if (flag) flag.value = "";
+      row.classList.add("modified");
+      return;
+    }
+    if (flag && flag.value === "1") {
+      row.classList.remove("modified");
+      return;
+    }
+    row.classList.toggle("modified", row.getAttribute("data-initial-modified") === "1");
+    return;
+  }
+  var same = rowValue(row) === (row.getAttribute("data-default") || "");
+  row.classList.toggle("modified", !same);
+  if (flag) flag.value = same ? "1" : "";
+}
+document.querySelectorAll(".row").forEach(function (row) {
+  row.addEventListener("input", function () { syncRow(row); });
+  row.addEventListener("change", function () { syncRow(row); });
+});
+document.querySelectorAll(".reset").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    var row = btn.closest(".row");
+    var flag = row.querySelector(".reset-flag");
+    if (row.getAttribute("data-kind") === "password") {
+      if (flag) flag.value = "1";
+      var input = row.querySelector(".secret-field input");
+      if (input) input.value = "";
+      row.classList.remove("modified");
+      return;
+    }
+    setRowValue(row, row.getAttribute("data-default") || "");
+    syncRow(row);
+  });
+});
 </script>
 </body>
 </html>
 """
 
 
-def load_config():
-    path = CONFIG_PATH
-    if not path.is_file():
-        return None, (
-            "config.json introuvable. Copier config.example.json vers config.json."
-        )
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return None, f"config.json n'est pas du JSON valide (ligne {exc.lineno})."
-    except OSError as exc:
-        return None, f"Lecture de config.json impossible : {exc}"
-    if not isinstance(data, dict):
-        return None, "config.json doit contenir un objet JSON."
-    return data, None
+def load_layers():
+    """(défauts, fusion, None) ou (None, None, message).
+
+    config.json absent : la fusion est une copie des défauts.
+    """
+    defaults, error = config_file.read_json_object(DEFAULT_CONFIG_PATH)
+    if error:
+        return None, None, error
+    if not CONFIG_PATH.is_file():
+        return defaults, config_file.merge_config(defaults, {}), None
+    user, error = config_file.read_json_object(CONFIG_PATH)
+    if error:
+        return None, None, error
+    return defaults, config_file.merge_config(defaults, user), None
 
 
 def dump_config(data):
-    return _dump(data, 0) + "\n"
-
-
-def _dump(data, level):
-    indent = "  " * level
-    if isinstance(data, dict):
-        if not data:
-            return "{}"
-        lines = []
-        items = list(data.items())
-        for index, (key, value) in enumerate(items):
-            comma = "," if index < len(items) - 1 else ""
-            rendered = _dump(value, level + 1)
-            key_text = json.dumps(key, ensure_ascii=False)
-            lines.append(f"{'  ' * (level + 1)}{key_text}: {rendered}{comma}")
-        return "{\n" + "\n".join(lines) + "\n" + indent + "}"
-    if isinstance(data, list):
-        if all(_is_scalar(item) for item in data):
-            return "[" + ", ".join(_scalar(item) for item in data) + "]"
-        inner = []
-        for index, item in enumerate(data):
-            comma = "," if index < len(data) - 1 else ""
-            inner.append(f"{'  ' * (level + 1)}{_dump(item, level + 1)}{comma}")
-        return "[\n" + "\n".join(inner) + "\n" + indent + "]"
-    return _scalar(data)
-
-
-def _is_scalar(data):
-    return data is None or type(data) in (bool, int, float, str)
-
-
-def _scalar(data):
-    return json.dumps(data, ensure_ascii=False)
+    return config_file.dump_config(data)
 
 
 def save_config(data):
-    text = dump_config(data)
-    json.loads(text)
-    if CONFIG_PATH.is_file():
-        shutil.copy2(CONFIG_PATH, BACKUP_PATH)
-    tmp_path = None
-    try:
-        fd, tmp_name = tempfile.mkstemp(
-            dir=CONFIG_PATH.parent, prefix=".config.json.", suffix=".tmp"
-        )
-        tmp_path = Path(tmp_name)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_path, CONFIG_PATH)
-    except Exception:
-        if tmp_path is not None and tmp_path.exists():
-            tmp_path.unlink()
-        raise
+    config_file.save_json_file(CONFIG_PATH, data, BACKUP_PATH)
 
 
 def languages():
@@ -761,29 +813,38 @@ def _parse_number(raw, original):
     return _parse_finite(raw, "nombre attendu.")
 
 
-def build_config(original, fields):
+def build_config(original, fields, defaults=None, resets=None):
     errors = []
     if not isinstance(original, dict):
         return original, ["config.json doit contenir un objet JSON."]
-    built = _apply_dict(original, "", fields, errors)
+    built = _apply_dict(original, "", fields, errors, defaults, resets or set())
     return built, errors
 
 
-def _apply_dict(obj, prefix, fields, errors):
+def _apply_dict(obj, prefix, fields, errors, defaults, resets):
     built = {}
     for key, value in obj.items():
         path = f"{prefix}.{key}" if prefix else key
-        built[key] = _apply_value(path, value, fields, errors)
+        built[key] = _apply_value(path, value, fields, errors, defaults, resets)
     return built
 
 
-def _apply_value(path, value, fields, errors):
+def _apply_value(path, value, fields, errors, defaults, resets):
     kind = field_kind(path, value)
     if kind == "section":
         if not isinstance(value, dict):
             errors.append(f"{path} : objet JSON attendu.")
             return value
-        return _apply_dict(value, path, fields, errors)
+        return _apply_dict(value, path, fields, errors, defaults, resets)
+    if path in resets:
+        if defaults is None:
+            errors.append(f"{path} : pas de valeur par défaut.")
+            return value
+        try:
+            return copy.deepcopy(config_file.value_at(defaults, path))
+        except KeyError:
+            errors.append(f"{path} : pas de valeur par défaut.")
+            return value
     if path not in fields:
         errors.append(f"{path} : champ manquant.")
         return value
@@ -799,17 +860,20 @@ def parse_form(body):
     action_values = parsed.get("action") or ["save"]
     action = action_values[-1]
     fields = {}
+    resets = set()
     for key, values in parsed.items():
         if key.startswith("v:"):
             fields[key[2:]] = values[-1]
-    return action, fields
+        elif key.startswith("reset:") and values[-1] == "1":
+            resets.add(key[len("reset:"):])
+    return action, fields, resets
 
 
 def esc(value):
     return html.escape(str(value), quote=True)
 
 
-def render_page(config, fields=None, notice=None, error=False, errors=None):
+def render_page(config, fields=None, notice=None, error=False, errors=None, defaults=None):
     parts = [PAGE_HEAD]
     messages = _render_messages(notice, error, errors)
     if isinstance(config, dict):
@@ -817,7 +881,7 @@ def render_page(config, fields=None, notice=None, error=False, errors=None):
             '<form method="post" action="/" autocomplete="off" accept-charset="UTF-8">'
         )
         parts.append('<div class="settings">')
-        parts.append(_render_settings(config, fields))
+        parts.append(_render_settings(config, fields, defaults))
         parts.append("</div>")
         parts.append('<div class="bar"><div class="messages">')
         parts.append(messages)
@@ -846,7 +910,7 @@ def _render_messages(notice, error, errors):
     return "".join(chunks)
 
 
-def _render_settings(config, fields):
+def _render_settings(config, fields, defaults):
     grouped = {name: [] for name in _SECTION_ORDER}
     for item in _collect_fields(config, ""):
         grouped[_section_name(item[0])].append(item)
@@ -857,7 +921,7 @@ def _render_settings(config, fields):
             continue
         chunks.append(f'<h2 class="section">{esc(name)}</h2>')
         for path, key, kind, value in rows:
-            chunks.append(_render_field(path, key, kind, value, fields))
+            chunks.append(_render_field(path, key, kind, value, fields, defaults))
     return "".join(chunks)
 
 
@@ -896,9 +960,47 @@ def _submitted_text(path, kind, value, fields):
     return format_value(kind, value)
 
 
-def _render_field(path, key, kind, value, fields):
+def _lookup_default(path, defaults):
+    """(présent, valeur). présent est faux si defaults est absent ou sans ce chemin."""
+    if not isinstance(defaults, dict):
+        return False, None
+    try:
+        return True, config_file.value_at(defaults, path)
+    except KeyError:
+        return False, None
+
+
+def _is_modified(path, kind, value, fields, defaults):
+    found, default_value = _lookup_default(path, defaults)
+    if not found:
+        return False
+    if kind == "password":
+        typed = fields.get(path, "") if fields else ""
+        if typed:
+            return True
+        return value != default_value
+    if fields is not None and path in fields:
+        return fields[path] != format_value(field_kind(path, default_value), default_value)
+    return value != default_value
+
+
+def _render_field(path, key, kind, value, fields, defaults):
     raw = _submitted_text(path, kind, value, fields)
     name = f'name="v:{esc(path)}"'
+    found, default_value = _lookup_default(path, defaults)
+    if isinstance(defaults, dict) and not found:
+        modified = True
+        default_text = None
+        show_reset = False
+    else:
+        modified = _is_modified(path, kind, value, fields, defaults)
+        show_reset = True
+        if kind == "password":
+            default_text = None
+        elif found:
+            default_text = format_value(field_kind(path, default_value), default_value)
+        else:
+            default_text = format_value(kind, value)
     if kind == "bool":
         checked = " checked" if raw == "true" else ""
         control = (
@@ -974,11 +1076,33 @@ def _render_field(path, key, kind, value, fields):
         control = (
             f'<input type="{input_type}" {name} value="{esc(raw)}"{step} spellcheck="false">'
         )
-    row_class = "row json" if kind == "json" else "row"
+    classes = ["row"]
+    if kind == "json":
+        classes.append("json")
+    if modified:
+        classes.append("modified")
+    attrs = (
+        f'class="{" ".join(classes)}" data-path="{esc(path)}" data-kind="{esc(kind)}" '
+        f'data-initial-modified="{"1" if modified else "0"}"'
+    )
+    if default_text is not None:
+        attrs += f' data-default="{esc(default_text)}"'
+    reset_html = ""
+    flag = ""
+    if show_reset:
+        reset_html = (
+            '<button type="button" class="reset" '
+            'aria-label="Revenir à la valeur par défaut" '
+            'title="Revenir à la valeur par défaut">↺</button>'
+        )
+        flag = (
+            f'<input type="hidden" class="reset-flag" name="reset:{esc(path)}" value="">'
+        )
     return (
-        f'<div class="{row_class}">'
-        f'<div class="name"><span>{esc(key)}</span>{_help_button(path, key)}</div>'
-        f'<div class="control">{control}</div>'
+        f"<div {attrs}>"
+        f'<div class="name"><span class="mod-dot" title="Valeur différente du défaut"></span>'
+        f"<span>{esc(key)}</span>{_help_button(path, key)}{reset_html}</div>"
+        f'<div class="control">{flag}{control}</div>'
         "</div>"
     )
 
@@ -1113,11 +1237,11 @@ class Handler(BaseHTTPRequestHandler):
         if path != "/":
             self.send_html(404, render_page(None, notice="Page introuvable.", error=True))
             return
-        config, load_error = load_config()
+        defaults, config, load_error = load_layers()
         if load_error:
             self.send_html(200, render_page(None, notice=load_error, error=True))
             return
-        self.send_html(200, render_page(config))
+        self.send_html(200, render_page(config, defaults=defaults))
 
     def do_POST(self):
         if self._unauthorized():
@@ -1130,7 +1254,7 @@ class Handler(BaseHTTPRequestHandler):
         if body is None:
             return
         try:
-            action, fields = parse_form(body)
+            action, fields, resets = parse_form(body)
         except UnicodeDecodeError:
             self.send_html(
                 400, render_page(None, notice="Encodage de la requête illisible.", error=True)
@@ -1138,7 +1262,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if action == "restart":
             ok, message = restart_service()
-            config, load_error = load_config()
+            defaults, config, load_error = load_layers()
             self.send_html(
                 200,
                 render_page(
@@ -1146,11 +1270,12 @@ class Handler(BaseHTTPRequestHandler):
                     fields=fields,
                     notice=load_error or message,
                     error=(not ok) or bool(load_error),
+                    defaults=defaults,
                 ),
             )
             return
         if action != "save":
-            config, load_error = load_config()
+            defaults, config, load_error = load_layers()
             self.send_html(
                 200,
                 render_page(
@@ -1158,19 +1283,24 @@ class Handler(BaseHTTPRequestHandler):
                     fields=fields,
                     notice=load_error or "Action inconnue.",
                     error=True,
+                    defaults=defaults,
                 ),
             )
             return
-        config, load_error = load_config()
+        defaults, config, load_error = load_layers()
         if load_error:
             self.send_html(200, render_page(None, notice=load_error, error=True))
             return
-        built, errors = build_config(config, fields)
+        built, errors = build_config(config, fields, defaults=defaults, resets=resets)
         if errors:
-            self.send_html(200, render_page(config, fields=fields, errors=errors))
+            self.send_html(
+                200,
+                render_page(config, fields=fields, errors=errors, defaults=defaults),
+            )
             return
+        existed = CONFIG_PATH.is_file()
         try:
-            save_config(built)
+            save_config(config_file.overrides_only(defaults, built))
         except (OSError, ValueError, TypeError) as exc:
             self.send_html(
                 200,
@@ -1178,20 +1308,25 @@ class Handler(BaseHTTPRequestHandler):
                     config,
                     fields=fields,
                     errors=[f"Écriture impossible : {exc}"],
+                    defaults=defaults,
                 ),
             )
             return
-        saved, saved_error = load_config()
+        saved_defaults, saved, saved_error = load_layers()
         self.send_html(
             200,
             render_page(
                 saved if saved_error is None else config,
                 notice=(
                     saved_error
-                    or "Enregistré. Copie précédente : config.json.bak. "
-                    "Redémarrer le service pour appliquer."
+                    or (
+                        "Enregistré. "
+                        + ("Copie précédente : config.json.bak. " if existed else "")
+                        + "Redémarrer le service pour appliquer."
+                    )
                 ),
                 error=bool(saved_error),
+                defaults=saved_defaults if saved_error is None else defaults,
             ),
         )
 

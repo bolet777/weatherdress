@@ -11,7 +11,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXAMPLE = ROOT / "config.example.json"
+DEFAULT = ROOT / "config.default.json"
 _PATH = ROOT / "scripts" / "config_editor.py"
 
 
@@ -59,15 +59,15 @@ def test_default_listen_address():
     assert editor.PORT == 8765
 
 
-def test_example_roundtrip_preserves_order_and_types():
-    original = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+def test_default_roundtrip_preserves_order_and_types():
+    original = json.loads(DEFAULT.read_text(encoding="utf-8"))
     built, errors = editor.build_config(original, _field_map(original))
     assert errors == []
     assert built == original
     assert list(built) == list(original)
     assert list(built["layout"]) == list(original["layout"])
     assert list(built["transit"]) == list(original["transit"])
-    assert editor.dump_config(original) == EXAMPLE.read_text(encoding="utf-8")
+    assert editor.dump_config(original) == DEFAULT.read_text(encoding="utf-8")
 
 
 def test_widget_kinds():
@@ -129,11 +129,12 @@ def test_missing_field_is_an_error():
 
 
 def test_checkbox_last_value_wins():
-    action, fields = editor.parse_form(
-        b"v:fullscreen=false&v:fullscreen=true&action=restart"
+    action, fields, resets = editor.parse_form(
+        b"v:fullscreen=false&v:fullscreen=true&reset:city=1&reset:units=&action=restart"
     )
     assert action == "restart"
     assert fields["fullscreen"] == "true"
+    assert resets == {"city"}
 
 
 def test_blank_secret_keeps_stored_value():
@@ -153,9 +154,9 @@ def test_typed_secret_replaces_stored_value():
     assert built["api_key"] == "nouveau"
 
 
-def test_form_controls_for_example():
-    config = json.loads(EXAMPLE.read_text(encoding="utf-8"))
-    page = editor.render_page(config)
+def test_form_controls_for_default():
+    config = json.loads(DEFAULT.read_text(encoding="utf-8"))
+    page = editor.render_page(config, defaults=config)
     assert '<input type="password" name="v:api_key" value=""' in page
     assert '<input type="password" name="v:transit.stm_api_key" value=""' in page
     assert "VOTRE_CLE_OPENWEATHERMAP_ICI" not in page
@@ -185,6 +186,11 @@ def test_form_controls_for_example():
     assert page.index("Mise en page") < page.index('name="v:transit.bus_stops"')
     assert ">Enregistrer</button>" in page
     assert ">Redémarrer le service</button>" in page
+    assert 'class="mod-dot"' in page
+    assert 'class="row modified"' not in page
+    assert 'class="row json modified"' not in page
+    assert 'aria-label="Revenir à la valeur par défaut"' in page
+    assert "↺" in page
 
 
 def test_save_writes_backup_then_replaces(tmp_path, monkeypatch):
@@ -203,7 +209,7 @@ def test_save_writes_backup_then_replaces(tmp_path, monkeypatch):
 def editor_server(tmp_path, monkeypatch):
     config_path = tmp_path / "config.json"
     backup_path = tmp_path / "config.json.bak"
-    config_path.write_text(EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    config_path.write_text(DEFAULT.read_text(encoding="utf-8"), encoding="utf-8")
     monkeypatch.setattr(editor, "CONFIG_PATH", config_path)
     monkeypatch.setattr(editor, "BACKUP_PATH", backup_path)
     httpd = HTTPServer(("127.0.0.1", 0), editor.Handler)
@@ -261,9 +267,7 @@ def test_http_save_updates_city_and_keeps_backup(editor_server):
     assert "Enregistré" in body
     assert "config.json.bak" in body
     saved = json.loads(config_path.read_text(encoding="utf-8"))
-    assert saved["city"] == "Québec,CA"
-    saved["city"] = config["city"]
-    assert saved == config
+    assert saved == {"city": "Québec,CA"}
     assert backup_path.read_text(encoding="utf-8") == original
 
 
@@ -412,11 +416,21 @@ def test_http_basic_auth(tmp_path, monkeypatch):
         thread.join(timeout=2)
 
 
-def test_http_blank_secret_is_kept(editor_server):
+def test_http_blank_secret_keeps_real_key_and_drops_defaults(editor_server):
     httpd, config_path, backup_path = editor_server
-    original = json.loads(config_path.read_text(encoding="utf-8"))
+    config_path.write_text(
+        json.dumps(
+            {"api_key": "secret-value", "transit": {"stm_api_key": "stm-secret"}},
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _defaults, merged, error = editor.load_layers()
+    assert error is None
+    assert merged["layout"]["weather_mode"] == "after_character"
     pairs = []
-    for key, value in _walk_fields(original, bool_pair=True):
+    for key, value in _walk_fields(merged, bool_pair=True):
         if key in ("v:api_key", "v:transit.stm_api_key"):
             pairs.append((key, ""))
         elif key == "v:city":
@@ -424,13 +438,82 @@ def test_http_blank_secret_is_kept(editor_server):
         else:
             pairs.append((key, value))
     pairs.append(("action", "save"))
-    status, _body = _post(httpd, pairs)
+    status, body = _post(httpd, pairs)
     assert status == 200
+    assert "Enregistré" in body
     saved = json.loads(config_path.read_text(encoding="utf-8"))
-    assert saved["city"] == "Québec,CA"
-    assert saved["api_key"] == original["api_key"]
-    assert saved["transit"]["stm_api_key"] == original["transit"]["stm_api_key"]
+    assert saved == {
+        "api_key": "secret-value",
+        "city": "Québec,CA",
+        "transit": {"stm_api_key": "stm-secret"},
+    }
     assert backup_path.is_file()
+    page = body
+    assert "secret-value" not in page
+    assert "stm-secret" not in page
+    assert 'data-path="city"' in page
+    assert 'class="row modified" data-path="city"' in page
+
+
+def test_reset_flag_drops_the_override():
+    defaults = {"city": "Montreal,CA", "refresh_minutes": 5, "layout": {"weather_mode": "after_character"}}
+    merged = {
+        "city": "Québec,CA",
+        "refresh_minutes": 5,
+        "layout": {"weather_mode": "screen_right"},
+    }
+    built, errors = editor.build_config(
+        merged,
+        {
+            "city": "Québec,CA",
+            "refresh_minutes": "5",
+            "layout.weather_mode": "screen_right",
+        },
+        defaults=defaults,
+        resets={"city"},
+    )
+    assert errors == []
+    assert built["city"] == "Montreal,CA"
+    assert built["layout"]["weather_mode"] == "screen_right"
+    assert editor.config_file.overrides_only(defaults, built) == {
+        "layout": {"weather_mode": "screen_right"}
+    }
+
+
+def test_http_missing_config_json_shows_defaults_and_writes_diffs(tmp_path, monkeypatch):
+    config_path = tmp_path / "config.json"
+    backup_path = tmp_path / "config.json.bak"
+    monkeypatch.setattr(editor, "CONFIG_PATH", config_path)
+    monkeypatch.setattr(editor, "BACKUP_PATH", backup_path)
+    httpd = HTTPServer(("127.0.0.1", 0), editor.Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        port = httpd.server_address[1]
+        with urlopen(f"http://127.0.0.1:{port}/") as response:
+            page = response.read().decode("utf-8")
+        assert 'name="v:city"' in page
+        assert 'name="v:layout.weather_mode"' in page
+        assert "introuvable" not in page
+        assert 'class="row modified"' not in page
+        defaults, merged, error = editor.load_layers()
+        assert error is None
+        assert merged["city"] == defaults["city"]
+        pairs = [
+            ("v:city", "Québec,CA") if key == "v:city" else (key, value)
+            for key, value in _walk_fields(merged, bool_pair=True)
+        ]
+        pairs.append(("action", "save"))
+        status, body = _post(httpd, pairs)
+        assert status == 200
+        assert "Enregistré" in body
+        assert "config.json.bak" not in body
+        assert json.loads(config_path.read_text(encoding="utf-8")) == {"city": "Québec,CA"}
+        assert not backup_path.exists()
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2)
 
 
 def test_unknown_path_is_404():

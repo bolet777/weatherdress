@@ -1,6 +1,6 @@
 # Mise en page (personnage + texte météo)
 
-Tout se règle dans **`config.json`** sous la clé **`layout`** (objet JSON optionnel). Les valeurs absentes sont complétées par les défauts du fichier `layout_config.py`.
+La mise en page se règle sous la clé **`layout`**. `config.default.json` fournit chaque clé ; `config.json` ne contient que les surcharges. Une clé absente des deux est complétée par `layout_config.py`.
 
 ## Exemple
 
