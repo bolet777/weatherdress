@@ -176,13 +176,15 @@ def test_form_controls_for_example():
     assert 'name="v:character_colorkey"' in page
     assert 'name="v:transit.bus_stops"' in page
     assert 'name="v:accessories_column.plate_color"' in page
-    assert "<legend>layout</legend>" in page
-    assert "<legend>transit</legend>" in page
-    assert "<legend>accessories_column</legend>" in page
-    assert page.index("<legend>layout</legend>") < page.index('name="v:background_color"')
-    assert page.index('name="v:background_color"') < page.index("<legend>transit</legend>")
+    assert '<h2 class="section">Météo</h2>' in page
+    assert '<h2 class="section">Ambiance</h2>' in page
+    assert '<h2 class="section">Mise en page</h2>' in page
+    assert '<h2 class="section">Transport</h2>' in page
+    assert page.index("Météo") < page.index('name="v:background_color"')
+    assert page.index('name="v:background_color"') < page.index("Mise en page")
+    assert page.index("Mise en page") < page.index('name="v:transit.bus_stops"')
     assert ">Enregistrer</button>" in page
-    assert ">Redémarrer</button>" in page
+    assert ">Redémarrer le service</button>" in page
 
 
 def test_save_writes_backup_then_replaces(tmp_path, monkeypatch):
