@@ -7,7 +7,7 @@ Tout se règle dans **`config.json`** sous la clé **`layout`** (objet JSON opti
 ```json
 "layout": {
   "character_center_x_pct": 0.26,
-  "weather_top_pct": 0.06,
+  "weather_transit_vertical_offset_px": -12,
   "weather_temp_font_min": 58,
   "weather_temp_font_max": 110
 }
@@ -28,7 +28,6 @@ Tout se règle dans **`config.json`** sous la clé **`layout`** (objet JSON opti
 |-----|------|
 | `weather_mode` | **`after_character`** : colonne droite (température, description, bus, métro) **centrée verticalement** sur le personnage. **`screen_right`** : aligné au bord droit, centré verticalement. |
 | `weather_gap_after_character_px` | Espace entre le bord droit du personnage et le début du texte (mode `after_character`). |
-| `weather_top_pct` | Utilisé seulement **sans** transport configuré : fraction de hauteur d’écran pour placer la température depuis le haut. |
 | `weather_transit_vertical_offset_px` | Décalage fin (px) de toute la colonne droite (météo + transport) après centrage sur le personnage. |
 | `weather_screen_right_margin_pct` | Marge droite réservée (fraction de la largeur) pour ne pas coller au bord et pour le retour à la ligne. |
 
@@ -38,7 +37,6 @@ Chaque taille est choisie entre **min** et **max** (pixels), en restant cohéren
 
 - `weather_temp_font_min` / `weather_temp_font_max` — température (gras).
 - `weather_desc_font_min` / `weather_desc_font_max` — description météo.
-- `weather_note_font_min` / `weather_note_font_max` — ligne de prévision (ex. « pluie dans 8H »).
 
 Pour agrandir le texte : augmentez surtout **min** et **max** de la température (et éventuellement de la description).
 

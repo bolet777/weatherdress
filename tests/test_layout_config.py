@@ -10,8 +10,8 @@ def test_effective_layout_defaults():
 
 
 def test_effective_layout_override():
-    cfg = {"layout": {"weather_mode": "screen_right", "weather_top_pct": 0.2}}
+    cfg = {"layout": {"weather_mode": "screen_right", "weather_gap_after_character_px": 40}}
     L = layout_config.effective_layout(cfg)
     assert L["weather_mode"] == "screen_right"
-    assert L["weather_top_pct"] == 0.2
+    assert L["weather_gap_after_character_px"] == 40
     assert L["character_center_x_pct"] == 0.28

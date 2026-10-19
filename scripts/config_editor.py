@@ -45,40 +45,205 @@ SLIDER_EXACT = {"weather_background_alpha", "ambient_min_day_brightness"}
 SELECT_PATHS = {"units", "language", "layout.weather_mode"}
 
 HELP = {
-    "character_colorkey": (
-        "null = désactivé. Utile seulement pour un sprite sans transparence "
-        "(fond uni à effacer, ex. [255, 0, 255])."
+    "api_key": (
+        "Clé OpenWeatherMap. Une clé refusée remplace l’écran par un message d’erreur."
     ),
-    "weather_background_alpha": "Opacité de la photo de fond : 0 invisible, 1 opaque.",
-    "use_ambient_weather_background": (
-        "Couleur sous la photo et opacité selon l’heure et les nuages."
+    "city": (
+        "Ville demandée à OpenWeatherMap, format Ville,PAYS (ex. Montreal,CA). "
+        "Elle choisit la météo affichée, donc le fond, la tenue et le texte."
     ),
-    "ambient_twilight_minutes": (
-        "Minutes de fondu de chaque côté du lever et du coucher du soleil."
+    "language": (
+        "Langue des textes de l’interface et des descriptions météo. "
+        "fr ou en, selon les fichiers de locale/."
     ),
-    "ambient_min_day_brightness": (
-        "Luminosité minimale de jour par ciel couvert, entre 0 et 1."
+    "units": (
+        "Unité de la température affichée. metric = °C, imperial = °F. "
+        "Les seuils de tenue sont en Celsius."
+    ),
+    "use_weather_background": (
+        "Photo de fond selon la météo, recadrée plein écran. "
+        "Désactivé : couleur unie et médaillon circulaire derrière le personnage."
+    ),
+    "weather_background_alpha": (
+        "Opacité de l’image de fond météo, de 0 à 1. "
+        "1 = photo opaque, plus bas = la couleur derrière transparaît "
+        "(couleur d’ambiance si elle est activée, sinon background_color)."
     ),
     "refresh_minutes": (
-        "Minutes entre deux lectures de la météo. (redémarrage nécessaire)"
+        "Minutes entre deux lectures de la météo. "
+        "Plus bas = température, tenue et accessoires futurs revus plus souvent."
     ),
-    "fullscreen": "Plein écran sur le Pi. (redémarrage nécessaire)",
-    "screen_width": (
-        "Largeur de la fenêtre en pixels, ignorée en plein écran. (redémarrage nécessaire)"
+    "forecast_hours": (
+        "Horizon des accessoires futurs, en heures. "
+        "Plus grand = pastilles plus lointaines, et l’anneau « bientôt » s’étale sur une plus longue fenêtre."
     ),
-    "screen_height": (
-        "Hauteur de la fenêtre en pixels, ignorée en plein écran. (redémarrage nécessaire)"
+    "use_ambient_weather_background": (
+        "Couleur sous la photo et opacité selon le lever, le coucher et les nuages. "
+        "Désactivé : fond fixe (background_color) et opacité fixe."
     ),
+    "ambient_twilight_minutes": (
+        "Minutes de fondu de chaque côté du lever et du coucher. "
+        "Plus grand = aube et crépuscule plus longs."
+    ),
+    "ambient_min_day_brightness": (
+        "Luminosité minimale en plein jour par ciel couvert, de 0 à 1. "
+        "Plus haut = le midi nuageux reste plus clair."
+    ),
+    "ambient_night_bg": (
+        "Couleur sous la photo la nuit, [R, G, B] de 0 à 255. "
+        "Visible quand l’ambiance est activée."
+    ),
+    "ambient_day_clear_bg": (
+        "Couleur sous la photo en journée par ciel dégagé, [R, G, B]. "
+        "Visible quand l’ambiance est activée."
+    ),
+    "ambient_day_overcast_bg": (
+        "Couleur mélangée sous la photo quand il fait jour et nuageux, [R, G, B]. "
+        "Visible quand l’ambiance est activée."
+    ),
+    "background_color": (
+        "Couleur de fond [R, G, B] sans photo, et sous une photo translucide si l’ambiance est désactivée. "
+        "Un fond sombre affiche en clair le texte des écrans d’attente."
+    ),
+    "circle_background_color": (
+        "Couleur du médaillon circulaire derrière le personnage, [R, G, B]. "
+        "Visible seulement sans photo de fond météo."
+    ),
+    "character_colorkey": (
+        "null = désactivé. [R, G, B] rend cette couleur transparente sur le personnage et les accessoires. "
+        "Utile pour un PNG sans canal alpha ; tout pixel de cette couleur disparaît."
+    ),
+    "fullscreen": (
+        "true = plein écran à la résolution du moniteur, curseur masqué. "
+        "false = fenêtre de screen_width × screen_height."
+    ),
+    "screen_width": "Largeur de la fenêtre en pixels. Ignorée en plein écran.",
+    "screen_height": "Hauteur de la fenêtre en pixels. Ignorée en plein écran.",
     "debug_preview": (
-        "Météos fictives à la place de l’API. (redémarrage nécessaire)"
+        "true = météos fictives à la place de l’API, pour enchaîner tenues et fonds. "
+        "false = météo réelle."
     ),
-}
-RESTART_KEYS = {
-    "fullscreen",
-    "screen_width",
-    "screen_height",
-    "refresh_minutes",
-    "debug_preview",
+    "debug_preview_interval_seconds": (
+        "Secondes entre deux météos fictives. Plus bas = défilement plus rapide "
+        "(minimum effectif 0,5). Utilisé quand l’aperçu est activé."
+    ),
+    "identity_on_each_refresh": (
+        "true = nouveau personnage à chaque lecture météo. "
+        "false = personnage tiré une fois au démarrage et gardé."
+    ),
+    "character_variant_max": (
+        "Numéro max des sprites tirés au sort (fichiers …1.png, …2.png, …). "
+        "0 ou moins = toutes les variantes présentes sur le disque."
+    ),
+    "layout.character_center_x_pct": (
+        "Position horizontale du centre du personnage, de 0 (bord gauche) à 1 (bord droit). "
+        "Plus haut = plus à droite."
+    ),
+    "layout.character_center_y_offset_px": (
+        "Décalage vertical du personnage par rapport au milieu de l’écran, en pixels. "
+        "Négatif = plus haut, positif = plus bas."
+    ),
+    "layout.character_max_width_pct": (
+        "Largeur max du personnage, en fraction de la largeur d’écran (0–1). "
+        "Plus haut = sprite plus large, sans dépasser la taille du fichier."
+    ),
+    "layout.character_max_height_pct": (
+        "Hauteur max du personnage, en fraction de la hauteur d’écran (0–1). "
+        "Plus haut = sprite plus grand, sans dépasser la taille du fichier."
+    ),
+    "layout.weather_mode": (
+        "after_character = texte météo à droite du personnage, centré verticalement sur lui. "
+        "screen_right = texte aligné au bord droit, centré verticalement."
+    ),
+    "layout.weather_screen_right_margin_pct": (
+        "Marge entre le texte météo et le bord droit, en fraction de la largeur (0–1, au moins 16 px). "
+        "Plus haut = texte plus à gauche, moins de place pour la description."
+    ),
+    "layout.weather_gap_after_character_px": (
+        "Espace en pixels entre le personnage et le texte météo, en mode after_character. "
+        "Plus haut = texte plus éloigné du sprite."
+    ),
+    "layout.weather_transit_vertical_offset_px": (
+        "Décalage vertical en pixels de la colonne météo et transport, après centrage sur le personnage. "
+        "Négatif = remonte l’ensemble, positif = le descend."
+    ),
+    "layout.weather_temp_font_min": (
+        "Taille minimale de la température, en pixels. "
+        "La taille suit la hauteur d’écran et ne descend pas sous ce plancher."
+    ),
+    "layout.weather_temp_font_max": (
+        "Taille maximale de la température, en pixels. "
+        "Sur un grand écran, augmenter cette valeur agrandit le chiffre."
+    ),
+    "layout.weather_desc_font_min": (
+        "Taille minimale de la description météo, en pixels. "
+        "Plancher utilisé quand l’écran est petit."
+    ),
+    "layout.weather_desc_font_max": (
+        "Taille maximale de la description météo, en pixels. "
+        "Plafond utilisé quand l’écran est grand."
+    ),
+    "accessories_column.plate_color": (
+        "Couleur du disque derrière chaque icône d’accessoire, [R, G, B] ou [R, G, B, A]. "
+        "Le 4e nombre (0–255) est l’opacité ; sans lui, le disque est opaque."
+    ),
+    "accessories_column.track_color": (
+        "Couleur de l’anneau de fond autour des accessoires, [R, G, B] ou [R, G, B, A]. "
+        "L’arc d’urgence (vert bientôt, rouge plus tard) se dessine par-dessus."
+    ),
+    "transit.stm_api_key": (
+        "Clé API STM pour les prochains bus. "
+        "Vide ou placeholder : les cartes bus restent sans horaire. "
+        "La variable STM_API_KEY, si elle est définie, est utilisée à la place."
+    ),
+    "transit.gtfs_url": (
+        "Adresse du zip GTFS STM, source des horaires métro. "
+        "Le panneau transport s’affiche quand cette adresse, la station et le numéro de ligne sont renseignés."
+    ),
+    "transit.bus_stops": (
+        "Arrêts de bus suivis, objet JSON {identifiant STM: libellé}. "
+        "Le libellé est le sous-titre de la carte ; l’identifiant sert à lire les passages."
+    ),
+    "transit.metro_station": (
+        "Nom de station cherché dans le GTFS (extrait du nom, sans tenir compte de la casse). "
+        "Affiché en titre de carte, précédé de « Station »."
+    ),
+    "transit.metro_route_id": (
+        "Identifiant GTFS de la ligne de métro (ex. 5 pour la bleue). "
+        "Seuls les passages de cette ligne sont affichés."
+    ),
+    "transit.metro_line_color": (
+        "Couleur du bandeau gauche des cartes métro, [R, G, B]. "
+        "Le bandeau bus reste bleu foncé."
+    ),
+    "transit.metro_directions": (
+        "Libellés des directions, objet JSON {trip_headsign GTFS exact: texte court}. "
+        "Le texte s’affiche sous la station, précédé de « Direction »."
+    ),
+    "transit.transit_refresh_seconds": (
+        "Secondes entre deux lectures des horaires bus et métro. "
+        "Plus bas = les minutes affichées se mettent à jour plus souvent."
+    ),
+    "transit.transit_alternate_seconds": (
+        "Secondes avant de passer à l’arrêt de bus et à la direction métro suivants. "
+        "0 = toutes les cartes en même temps. Plus haut = chaque carte reste plus longtemps."
+    ),
+    "transit.card_title_font_px": (
+        "Taille du titre des cartes (bus ou station), en pixels, bornée de 10 à 48. "
+        "Plus grand = titre plus gros et carte plus haute."
+    ),
+    "transit.card_subtitle_font_px": (
+        "Taille du sous-titre (arrêt ou direction), en pixels, bornée de 8 à 40. "
+        "Plus grand = carte plus haute."
+    ),
+    "transit.card_times_font_px": (
+        "Taille des horaires (« 5min »), en pixels, bornée de 10 à 56. "
+        "Plus grand = minutes plus lisibles et carte plus haute."
+    ),
+    "transit.strip_mode_letter_font_px": (
+        "Taille de la lettre B ou M dans le bandeau, en pixels, bornée de 12 à 72. "
+        "Elle s’affiche seulement si l’icône bus ou métro est absente."
+    ),
 }
 
 _GEAR = (
@@ -117,7 +282,6 @@ _METEO_KEYS = {
     "weather_background_alpha",
     "refresh_minutes",
     "forecast_hours",
-    "forecast_step_hours",
 }
 _AMBIANCE_KEYS = {
     "use_ambient_weather_background",
@@ -832,12 +996,7 @@ def _help_button(path, key):
 
 
 def _field_help(path, key):
-    text = HELP.get(key, "")
-    if "(redémarrage nécessaire)" not in text and (
-        key in RESTART_KEYS or path.startswith("transit.")
-    ):
-        text = f"{text} (redémarrage nécessaire)".strip()
-    return text
+    return HELP.get(path) or HELP.get(key, "")
 
 
 def parse_args(argv):

@@ -726,12 +726,8 @@ def draw_weather_text_block(
                 y += line_gap
         return {"column_left": column_left, "bottom_y": y}
 
-    if block_top_y is not None:
-        y = int(block_top_y)
-        y = max(top_safe, min(y, screen_h - 4 - total_h))
-    else:
-        y = int(float(layout["weather_top_pct"]) * uh) + v_off
-        y = max(top_safe, min(y, uh - total_h - 8))
+    y = int(block_top_y)
+    y = max(top_safe, min(y, screen_h - 4 - total_h))
 
     y += _blit_temperature_with_icon(
         surface,

@@ -21,14 +21,11 @@
     "weather_mode": "after_character",
     "weather_screen_right_margin_pct": 0.04,
     "weather_gap_after_character_px": 12,
-    "weather_top_pct": 0.07,
     "weather_transit_vertical_offset_px": -28,
     "weather_temp_font_min": 52,
     "weather_temp_font_max": 102,
     "weather_desc_font_min": 22,
-    "weather_desc_font_max": 38,
-    "weather_note_font_min": 15,
-    "weather_note_font_max": 26
+    "weather_desc_font_max": 38
   },
   "background_color": [255, 255, 255],
   "circle_background_color": [230, 230, 230],
@@ -40,7 +37,6 @@
   "screen_height": 480,
   "refresh_minutes": 5,
   "forecast_hours": 8,
-  "forecast_step_hours": 3,
   "identity_on_each_refresh": false,
   "character_variant_max": 10,
   "debug_preview": false,
