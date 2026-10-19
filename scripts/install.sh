@@ -79,6 +79,19 @@ sed \
   -e "s|@RUN_USER@|${RUN_USER}|g" \
   packaging/weatherdress-config.service.in | sudo tee /etc/systemd/system/weatherdress-config.service > /dev/null
 
+if [ ! -f config.json ]; then
+  echo "==> Création de config.json (clés API à remplir, le reste vient de config.default.json)..."
+  cat > config.json << 'EOF'
+{
+  "api_key": "VOTRE_CLE_OPENWEATHERMAP_ICI",
+  "transit": {
+    "stm_api_key": "VOTRE_CLE_API_STM_ICI"
+  }
+}
+EOF
+  sudo chown "$RUN_USER:" config.json
+fi
+
 echo "==> Activation et démarrage du service..."
 sudo systemctl daemon-reload
 sudo systemctl enable weatherdress

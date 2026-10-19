@@ -127,11 +127,10 @@ Elles sont superposées sur le personnage — prévoir un fond transparent.
 
 ```bash
 # Sur le Pi, dans le répertoire du projet :
-# config.json : uniquement les surcharges (clé, ville, …)
-nano config.json
-
 bash scripts/install.sh
 ```
+
+`install.sh` crée `config.json` s’il n’existe pas, avec seulement `api_key` et `transit.stm_api_key` à remplir. Un fichier déjà présent n’est pas modifié.
 
 Si `config.json` est encore une copie complète de l’ancien modèle, une fois après mise à jour :
 

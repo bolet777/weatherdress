@@ -37,7 +37,6 @@
   "screen_height": 480,
   "refresh_minutes": 5,
   "forecast_hours": 8,
-  "identity_on_each_refresh": false,
   "character_variant_max": 10,
   "debug_preview": false,
   "debug_preview_interval_seconds": 5,

@@ -50,7 +50,6 @@ def test_default_file_covers_layout_and_app_keys():
         "screen_height",
         "refresh_minutes",
         "forecast_hours",
-        "identity_on_each_refresh",
         "character_variant_max",
         "debug_preview",
         "debug_preview_interval_seconds",
@@ -58,6 +57,15 @@ def test_default_file_covers_layout_and_app_keys():
         assert key in data
     assert data["api_key"] == "VOTRE_CLE_OPENWEATHERMAP_ICI"
     assert data["transit"]["stm_api_key"] == "VOTRE_CLE_API_STM_ICI"
+    for dead in (
+        "weather_top_pct",
+        "forecast_step_hours",
+        "identity_on_each_refresh",
+        "weather_note_font_min",
+        "weather_note_font_max",
+    ):
+        assert dead not in data
+        assert dead not in data["layout"]
 
 
 def test_merge_nested_objects_and_replaces_data_dicts():
