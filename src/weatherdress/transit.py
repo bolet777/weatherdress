@@ -136,15 +136,28 @@ class TransitFetcher:
     def _ensure_gtfs(self) -> None:
         path = self._gtfs_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.is_file():
+        if path.is_file() and zipfile.is_zipfile(path):
             age_hours = (time.time() - path.stat().st_mtime) / 3600
             if age_hours < GTFS_CACHE_HOURS:
                 return
+        elif path.is_file():
+            print(
+                "[transit] Cache GTFS inutilisable (pas une archive zip), "
+                "retéléchargement."
+            )
         url = self.config["gtfs_url"]
         print("[transit] Téléchargement GTFS STM...")
         r = requests.get(url, timeout=120)
         r.raise_for_status()
-        path.write_bytes(r.content)
+        partial = path.with_suffix(".zip.part")
+        partial.write_bytes(r.content)
+        if not zipfile.is_zipfile(partial):
+            partial.unlink(missing_ok=True)
+            raise RuntimeError(
+                "Le téléchargement GTFS n'est pas une archive zip "
+                f"({len(r.content)} octets)."
+            )
+        partial.replace(path)
         print("[transit] GTFS téléchargé.")
 
     def _read_zip_csv(self, filename: str) -> list[dict[str, str]]:

@@ -2,6 +2,8 @@ import datetime
 import zipfile
 from io import BytesIO
 
+import pytest
+
 from weatherdress.transit import (
     TransitFetcher,
     merge_transit_display_data,
@@ -105,6 +107,61 @@ def test_merge_transit_display_data_metro_when_ready():
     live = {"bus": {}, "metro": {"Snowdon": [5, 11]}}
     merged = merge_transit_display_data(cfg, live, metro_ready=True)
     assert merged["metro"] == {"Snowdon": [5, 11]}
+
+
+def _tiny_gtfs_bytes() -> bytes:
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("stops.txt", "stop_id,stop_name\n")
+    return buf.getvalue()
+
+
+def test_ensure_gtfs_keeps_fresh_zip(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    gtfs_path.write_bytes(_tiny_gtfs_bytes())
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+
+    def fail_download(*_args, **_kwargs):
+        raise AssertionError("le cache zip valide ne doit pas être retéléchargé")
+
+    monkeypatch.setattr("weatherdress.transit.requests.get", fail_download)
+    TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert zipfile.is_zipfile(gtfs_path)
+
+
+def test_ensure_gtfs_replaces_non_zip_cache(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    gtfs_path.write_text("<html>erreur</html>", encoding="utf-8")
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+    good = _tiny_gtfs_bytes()
+
+    class Response:
+        content = good
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("weatherdress.transit.requests.get", lambda *_a, **_k: Response())
+    TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert zipfile.is_zipfile(gtfs_path)
+    assert gtfs_path.read_bytes() == good
+
+
+def test_ensure_gtfs_discards_non_zip_download(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+
+    class Response:
+        content = b"<!DOCTYPE html><html>blocked</html>"
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr("weatherdress.transit.requests.get", lambda *_a, **_k: Response())
+    with pytest.raises(RuntimeError, match="n'est pas une archive zip"):
+        TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert not gtfs_path.exists()
+    assert not gtfs_path.with_suffix(".zip.part").exists()
 
 
 def test_metro_index_cache_roundtrip(tmp_path, monkeypatch):
