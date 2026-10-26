@@ -21,10 +21,19 @@ cd "$ROOT"
 
 git pull origin main
 
-# Page d'erreur ou téléchargement coupé : le fichier n'est pas un zip, et
-# l'appli le gardait 7 jours. On le retire pour forcer un nouveau téléchargement.
+# Archive illisible, incomplète ou sans les fichiers GTFS : on la retire
+# pour que le redémarrage retélécharge, au lieu de la garder 7 jours.
 GTFS_ZIP="$ROOT/cache/gtfs_stm.zip"
-if [ -f "$GTFS_ZIP" ] && ! python3 -c 'import sys, zipfile; sys.exit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)' "$GTFS_ZIP"; then
+if [ -f "$GTFS_ZIP" ] && ! PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}" python3 - "$GTFS_ZIP" << 'PY'
+import sys
+try:
+    from weatherdress.transit import gtfs_archive_ok
+except Exception as exc:
+    print(f"launch.sh : vérification GTFS ignorée ({exc})", file=sys.stderr)
+    sys.exit(0)
+sys.exit(0 if gtfs_archive_ok(sys.argv[1]) else 1)
+PY
+then
   echo "launch.sh : cache GTFS invalide, suppression."
   rm -f "$GTFS_ZIP" "$ROOT/cache/gtfs_stm.zip.part" "$ROOT/cache/metro_index.json"
 fi

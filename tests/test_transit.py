@@ -6,6 +6,7 @@ import pytest
 
 from weatherdress.transit import (
     TransitFetcher,
+    gtfs_archive_ok,
     merge_transit_display_data,
     resolve_stm_api_key,
     transit_config_enabled,
@@ -112,8 +113,32 @@ def test_merge_transit_display_data_metro_when_ready():
 def _tiny_gtfs_bytes() -> bytes:
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
-        z.writestr("stops.txt", "stop_id,stop_name\n")
+        z.writestr("stops.txt", "stop_id,stop_name\n1,Outremont\n")
+        z.writestr(
+            "trips.txt",
+            "route_id,service_id,trip_id,trip_headsign\n5,SVC,t1,Snowdon\n",
+        )
+        z.writestr(
+            "stop_times.txt",
+            "trip_id,stop_id,departure_time\nt1,1,10:00:00\n",
+        )
+        z.writestr(
+            "calendar.txt",
+            "service_id,monday,tuesday,wednesday,thursday,friday,saturday,sunday,"
+            "start_date,end_date\n"
+            "SVC,1,1,1,1,1,1,1,20200101,20991231\n",
+        )
     return buf.getvalue()
+
+
+def _response(content: bytes):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+    response = Response()
+    response.content = content
+    return response
 
 
 def test_ensure_gtfs_keeps_fresh_zip(tmp_path, monkeypatch):
@@ -134,34 +159,84 @@ def test_ensure_gtfs_replaces_non_zip_cache(tmp_path, monkeypatch):
     gtfs_path.write_text("<html>erreur</html>", encoding="utf-8")
     monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
     good = _tiny_gtfs_bytes()
-
-    class Response:
-        content = good
-
-        def raise_for_status(self):
-            return None
-
-    monkeypatch.setattr("weatherdress.transit.requests.get", lambda *_a, **_k: Response())
+    monkeypatch.setattr(
+        "weatherdress.transit.requests.get", lambda *_a, **_k: _response(good)
+    )
     TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert gtfs_archive_ok(gtfs_path)
+    assert gtfs_path.read_bytes() == good
+
+
+def test_ensure_gtfs_replaces_zip_with_bad_crc(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    corrupt = bytearray(_tiny_gtfs_bytes())
+    corrupt[len(corrupt) // 2 : len(corrupt) // 2 + 20] = b"\xff" * 20
+    gtfs_path.write_bytes(corrupt)
     assert zipfile.is_zipfile(gtfs_path)
+    assert not gtfs_archive_ok(gtfs_path)
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+    good = _tiny_gtfs_bytes()
+    monkeypatch.setattr(
+        "weatherdress.transit.requests.get", lambda *_a, **_k: _response(good)
+    )
+    TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert gtfs_path.read_bytes() == good
+
+
+def test_ensure_gtfs_retries_then_keeps_valid_download(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+    good = _tiny_gtfs_bytes()
+    calls = {"n": 0}
+
+    def download(*_args, **_kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _response(b"PK\x03\x04pas-une-archive")
+        return _response(good)
+
+    monkeypatch.setattr("weatherdress.transit.requests.get", download)
+    TransitFetcher(_sample_transit_config())._ensure_gtfs()
+    assert calls["n"] == 2
     assert gtfs_path.read_bytes() == good
 
 
 def test_ensure_gtfs_discards_non_zip_download(tmp_path, monkeypatch):
     gtfs_path = tmp_path / "gtfs_stm.zip"
     monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
-
-    class Response:
-        content = b"<!DOCTYPE html><html>blocked</html>"
-
-        def raise_for_status(self):
-            return None
-
-    monkeypatch.setattr("weatherdress.transit.requests.get", lambda *_a, **_k: Response())
-    with pytest.raises(RuntimeError, match="n'est pas une archive zip"):
+    monkeypatch.setattr(
+        "weatherdress.transit.requests.get",
+        lambda *_a, **_k: _response(b"<!DOCTYPE html><html>blocked</html>"),
+    )
+    with pytest.raises(RuntimeError, match="inutilisable"):
         TransitFetcher(_sample_transit_config())._ensure_gtfs()
     assert not gtfs_path.exists()
     assert not gtfs_path.with_suffix(".zip.part").exists()
+
+
+def test_initialize_retries_when_stop_times_read_fails(tmp_path, monkeypatch):
+    gtfs_path = tmp_path / "gtfs_stm.zip"
+    index_path = tmp_path / "metro_index.json"
+    gtfs_path.write_bytes(_tiny_gtfs_bytes())
+    monkeypatch.setattr("weatherdress.transit.GTFS_CACHE_PATH", gtfs_path)
+    monkeypatch.setattr("weatherdress.transit.METRO_INDEX_CACHE_PATH", index_path)
+    good = _tiny_gtfs_bytes()
+    monkeypatch.setattr(
+        "weatherdress.transit.requests.get", lambda *_a, **_k: _response(good)
+    )
+    calls = {"n": 0}
+    real_build = TransitFetcher._build_metro_index
+
+    def flaky(self):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise zipfile.BadZipFile("Bad CRC-32 for file 'stop_times.txt'")
+        return real_build(self)
+
+    monkeypatch.setattr(TransitFetcher, "_build_metro_index", flaky)
+    TransitFetcher(_sample_transit_config()).initialize()
+    assert calls["n"] == 2
+    assert gtfs_archive_ok(gtfs_path, verify_stop_times=True)
 
 
 def test_metro_index_cache_roundtrip(tmp_path, monkeypatch):

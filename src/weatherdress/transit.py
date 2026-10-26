@@ -8,6 +8,7 @@ import json
 import os
 import time
 import zipfile
+import zlib
 from datetime import date, datetime
 
 import requests
@@ -34,6 +35,23 @@ def weekday_column_for_date(d: date) -> str:
     return WEEKDAY_COLUMNS[d.weekday()]
 
 
+# Fichiers lus au démarrage. stop_times.txt est vérifié en entier seulement
+# au téléchargement : le relire à chaque boot doublerait le parcours du GTFS.
+GTFS_REQUIRED_MEMBERS = (
+    "stops.txt",
+    "trips.txt",
+    "stop_times.txt",
+    "calendar.txt",
+)
+GTFS_CRC_MEMBERS = (
+    "stops.txt",
+    "trips.txt",
+    "calendar.txt",
+    "calendar_dates.txt",
+)
+_ZIP_READ_ERRORS = (zipfile.BadZipFile, EOFError, zlib.error)
+
+
 def _zip_member(z: zipfile.ZipFile, filename: str) -> str:
     names = z.namelist()
     if filename in names:
@@ -42,6 +60,46 @@ def _zip_member(z: zipfile.ZipFile, filename: str) -> str:
         if n.endswith("/" + filename) or n.endswith("\\" + filename):
             return n
     raise FileNotFoundError(filename)
+
+
+def gtfs_archive_ok(path, *, verify_stop_times: bool = False) -> bool:
+    """
+    True si l'archive s'ouvre, contient le GTFS STM utile, et que les petits
+    fichiers passent le contrôle CRC. ``verify_stop_times`` relit aussi
+    stop_times.txt (téléchargement, pas le boot).
+    """
+    path = os.fspath(path)
+    if not os.path.isfile(path) or not zipfile.is_zipfile(path):
+        return False
+    try:
+        file_size = os.path.getsize(path)
+        with zipfile.ZipFile(path) as z:
+            for filename in GTFS_REQUIRED_MEMBERS:
+                _zip_member(z, filename)
+            for filename in GTFS_CRC_MEMBERS:
+                try:
+                    member = _zip_member(z, filename)
+                except FileNotFoundError:
+                    if filename == "calendar_dates.txt":
+                        continue
+                    return False
+                z.read(member)
+            stop_times = z.getinfo(_zip_member(z, "stop_times.txt"))
+            if stop_times.header_offset < 0 or stop_times.compress_size < 0:
+                return False
+            if stop_times.header_offset + stop_times.compress_size > file_size:
+                return False
+            if verify_stop_times:
+                if z.testzip() is not None:
+                    return False
+            else:
+                with z.open(stop_times) as handle:
+                    handle.read(1)
+    except _ZIP_READ_ERRORS:
+        return False
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def _parse_departure_seconds(departure_time: str) -> int:
@@ -130,35 +188,72 @@ class TransitFetcher:
 
     def initialize(self) -> None:
         """Télécharge le GTFS si besoin et construit l’index métro."""
-        self._ensure_gtfs()
-        self._build_metro_index()
+        try:
+            self._ensure_gtfs()
+            self._build_metro_index()
+        except _ZIP_READ_ERRORS as exc:
+            print(f"[transit] Lecture GTFS impossible ({exc}), nouvel essai.")
+            self._discard_gtfs_cache()
+            self._reset_metro_memory()
+            self._ensure_gtfs()
+            self._build_metro_index()
+
+    def _reset_metro_memory(self) -> None:
+        self._metro_index = []
+        self._metro_trips = {}
+        self._active_services_for_date = None
+        self._active_service_ids_cached = None
+
+    def _discard_gtfs_cache(self) -> None:
+        for path in (
+            self._gtfs_path,
+            self._gtfs_path.with_suffix(".zip.part"),
+            self._metro_index_cache_path,
+        ):
+            try:
+                if path.is_file():
+                    path.unlink()
+            except OSError as exc:
+                print(f"[transit] Impossible de supprimer {path} : {exc}")
 
     def _ensure_gtfs(self) -> None:
         path = self._gtfs_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        if path.is_file() and zipfile.is_zipfile(path):
+        if gtfs_archive_ok(path):
             age_hours = (time.time() - path.stat().st_mtime) / 3600
             if age_hours < GTFS_CACHE_HOURS:
                 return
         elif path.is_file():
-            print(
-                "[transit] Cache GTFS inutilisable (pas une archive zip), "
-                "retéléchargement."
-            )
+            print("[transit] Cache GTFS inutilisable, retéléchargement.")
+            path.unlink()
         url = self.config["gtfs_url"]
-        print("[transit] Téléchargement GTFS STM...")
-        r = requests.get(url, timeout=120)
-        r.raise_for_status()
         partial = path.with_suffix(".zip.part")
-        partial.write_bytes(r.content)
-        if not zipfile.is_zipfile(partial):
-            partial.unlink(missing_ok=True)
-            raise RuntimeError(
-                "Le téléchargement GTFS n'est pas une archive zip "
-                f"({len(r.content)} octets)."
-            )
-        partial.replace(path)
-        print("[transit] GTFS téléchargé.")
+        last_error: Exception | None = None
+        for attempt in (1, 2):
+            try:
+                if attempt == 1:
+                    print("[transit] Téléchargement GTFS STM...")
+                else:
+                    print("[transit] Nouvel essai du téléchargement GTFS...")
+                response = requests.get(url, timeout=120)
+                response.raise_for_status()
+                partial.write_bytes(response.content)
+                if not gtfs_archive_ok(partial, verify_stop_times=True):
+                    raise RuntimeError(
+                        "Le téléchargement GTFS est inutilisable "
+                        f"({len(response.content)} octets)."
+                    )
+                partial.replace(path)
+                print("[transit] GTFS téléchargé.")
+                return
+            except (OSError, requests.RequestException, RuntimeError) as exc:
+                last_error = exc
+                print(f"[transit] Téléchargement GTFS refusé : {exc}")
+                if partial.is_file():
+                    partial.unlink()
+        if last_error is None:
+            raise RuntimeError("Téléchargement GTFS impossible.")
+        raise last_error
 
     def _read_zip_csv(self, filename: str) -> list[dict[str, str]]:
         with zipfile.ZipFile(self._gtfs_path) as z:
