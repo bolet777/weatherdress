@@ -54,8 +54,15 @@ def test_default_file_covers_layout_and_app_keys():
         "character_variant_max",
         "debug_preview",
         "debug_preview_interval_seconds",
+        "calendar",
     ):
         assert key in data
+    assert data["calendar"] == {
+        "enabled": False,
+        "url": "",
+        "refresh_minutes": 30,
+        "rotate_seconds": 15,
+    }
     assert data["api_key"] == "VOTRE_CLE_OPENWEATHERMAP_ICI"
     assert data["transit"]["stm_api_key"] == "VOTRE_CLE_API_STM_ICI"
     assert data["identity_on_each_refresh"] is False

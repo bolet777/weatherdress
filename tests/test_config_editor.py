@@ -87,6 +87,8 @@ def test_widget_kinds():
     assert editor.field_kind("transit.bus_stops", {"56220": "Snowdon"}) == "json"
     assert editor.field_kind("transit.metro_directions", {"Snowdon": "Snowdon"}) == "json"
     assert editor.field_kind("fullscreen", True) == "bool"
+    assert editor.field_kind("calendar.enabled", False) == "bool"
+    assert editor.field_kind("calendar.url", "https://example.test/secret") == "password"
     assert editor.field_kind("city", "Montreal,CA") == "text"
     assert editor.field_kind("layout", {"weather_mode": "after_character"}) == "section"
 
@@ -286,6 +288,9 @@ def test_form_controls_for_default():
     assert '<h2 class="section">Ambiance</h2>' in page
     assert '<h2 class="section">Mise en page</h2>' in page
     assert '<h2 class="section">Transport</h2>' in page
+    assert '<h2 class="section">Agenda</h2>' in page
+    assert '<input type="password" name="v:calendar.url" value=""' in page
+    assert 'name="v:calendar.rotate_seconds"' in page
     assert page.index("Météo") < page.index('name="v:background_color"')
     assert page.index('name="v:background_color"') < page.index("Mise en page")
     assert page.index("Mise en page") < page.index('name="v:transit.bus_stops"')
@@ -424,13 +429,23 @@ def test_http_restart_success(editor_server, monkeypatch):
 
 def test_secrets_stay_out_of_the_page_after_a_typed_value():
     page = editor.render_page(
-        {"api_key": "secret-value", "transit": {"stm_api_key": "stm-secret"}},
-        fields={"api_key": "typed-secret", "transit.stm_api_key": "typed-stm"},
+        {
+            "api_key": "secret-value",
+            "transit": {"stm_api_key": "stm-secret"},
+            "calendar": {"url": "webcal://example.test/SECRET-CAL-TOKEN"},
+        },
+        fields={
+            "api_key": "typed-secret",
+            "transit.stm_api_key": "typed-stm",
+            "calendar.url": "https://example.test/TYPED-CAL-TOKEN",
+        },
     )
     assert "secret-value" not in page
     assert "stm-secret" not in page
     assert "typed-secret" not in page
     assert "typed-stm" not in page
+    assert "SECRET-CAL-TOKEN" not in page
+    assert "TYPED-CAL-TOKEN" not in page
 
 
 def test_lan_host_requires_password_file(tmp_path):

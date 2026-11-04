@@ -65,5 +65,11 @@
     "card_times_font_px": 24,
     "strip_mode_letter_font_px": 42,
     "card_height_px": null
+  },
+  "calendar": {
+    "enabled": false,
+    "url": "",
+    "refresh_minutes": 30,
+    "rotate_seconds": 15
   }
 }

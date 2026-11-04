@@ -53,6 +53,12 @@ if is_raspberry_pi; then
     gtfs_pip_args=(--break-system-packages "${gtfs_pip_args[@]}")
   fi
   pip3 install "${gtfs_pip_args[@]}"
+  echo "==> Agenda (icalendar, recurring-ical-events)..."
+  calendar_pip_args=('icalendar>=6.1,<7' 'recurring-ical-events>=3.0,<4')
+  if externally_managed_env; then
+    calendar_pip_args=(--break-system-packages "${calendar_pip_args[@]}")
+  fi
+  pip3 install "${calendar_pip_args[@]}"
 else
   echo "==> Installation des dépendances (pip)..."
   pip_args=(-r requirements.txt)

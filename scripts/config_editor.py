@@ -45,7 +45,7 @@ RAW_JSON_PATHS = {
     "transit.bus_stops",
     "transit.metro_directions",
 }
-PASSWORD_PATHS = {"api_key", "transit.stm_api_key"}
+PASSWORD_PATHS = {"api_key", "transit.stm_api_key", "calendar.url"}
 SLIDER_EXACT = {"weather_background_alpha", "ambient_min_day_brightness"}
 SELECT_PATHS = {"units", "language", "layout.weather_mode"}
 
@@ -430,6 +430,34 @@ FIELDS = {
             "null = hauteur calculée à partir des polices."
         ),
     },
+    "calendar.enabled": {
+        "label": "Lecture de l'agenda",
+        "help": (
+            "Activé : l'agenda alterne avec les transports quand des événements existent. "
+            "Désactivé : aucun téléchargement, l'écran reste inchangé."
+        ),
+    },
+    "calendar.url": {
+        "label": "Adresse secrète",
+        "help": (
+            "Lien public webcal ou https du calendrier. "
+            "Le champ vide conserve l'adresse déjà enregistrée. Elle n'est pas affichée."
+        ),
+    },
+    "calendar.refresh_minutes": {
+        "label": "Fréquence de lecture",
+        "help": (
+            "Minutes entre deux téléchargements du calendrier. "
+            "En cas d'échec, la dernière copie locale est conservée."
+        ),
+    },
+    "calendar.rotate_seconds": {
+        "label": "Durée de rotation",
+        "help": (
+            "Secondes avant de passer des transports à l'agenda, puis l'inverse. "
+            "0 laisse les transports affichés s'ils sont actifs, sinon l'agenda reste affiché."
+        ),
+    },
 }
 
 _GEAR = (
@@ -457,6 +485,7 @@ _SECTION_ORDER = (
     "Mise en page",
     "Accessoires",
     "Transport",
+    "Agenda",
     "Autres",
 )
 _METEO_KEYS = {
@@ -1170,6 +1199,8 @@ def _section_name(path):
         return "Accessoires"
     if top == "transit":
         return "Transport"
+    if top == "calendar":
+        return "Agenda"
     if top in _METEO_KEYS:
         return "Météo"
     if top in _AMBIANCE_KEYS:

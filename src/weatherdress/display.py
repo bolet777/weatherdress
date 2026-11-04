@@ -6,6 +6,7 @@ import pygame
 
 from . import ambient_background
 from . import background_assets
+from . import calendar_panel
 from . import character_assets
 from .badges import BADGE_AA_SCALE
 from . import future_accessories_column
@@ -1144,6 +1145,10 @@ def render(
     transit_data=None,
     *,
     transit_phase_t=0.0,
+    calendar_events=None,
+    calendar_phase_t=0.0,
+    shown_at=None,
+    frame_metrics=None,
 ):
     screen_w, screen_h = screen.get_size()
     usable_h = max(120, screen_h - transit_panel_reserved_height(config))
@@ -1239,6 +1244,7 @@ def render(
 
     block_top_y = None
     transit_start_y = None
+    transit_panel_h = 0
     v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
     top_safe_weather = top_safe + 4
 
@@ -1328,16 +1334,73 @@ def render(
         config,
     )
 
-    if transit_module.transit_config_enabled(config) and transit_start_y is not None:
+    column_left = int(weather_layout["column_left"])
+    card_w = max(40, screen_w - margin_right - column_left)
+    transit_panel = None
+    if transit_start_y is not None and transit_panel_h > 0:
+        transit_panel = pygame.Rect(
+            column_left, int(transit_start_y), card_w, int(transit_panel_h)
+        )
+
+    shown = shown_at if shown_at is not None else datetime.now().astimezone()
+    agenda_column = layout.get("weather_mode", "after_character") == "after_character"
+    calendar_on = calendar_panel.display_enabled(config, calendar_events)
+    has_events = (
+        calendar_panel.should_show_agenda(calendar_events, shown)
+        if calendar_on
+        else False
+    )
+    if agenda_column:
+        side = calendar_panel.choose_side(
+            calendar_enabled=calendar_on,
+            transit_enabled=transit_panel is not None,
+            has_events=has_events,
+            rotate_seconds=calendar_panel.rotate_period(config),
+            phase_t=calendar_phase_t,
+        )
+    else:
+        side = "none"
+
+    panel = transit_panel
+    if side == "calendar":
+        if panel is None:
+            top = int(weather_layout["bottom_y"]) + TRANSIT_AFTER_WEATHER_GAP
+            panel = pygame.Rect(
+                column_left,
+                top,
+                card_w,
+                max(0, (screen_h - 4) - top),
+            )
+        laid = calendar_panel.layout_agenda(calendar_events, shown, panel)
+        if laid.show:
+            calendar_panel.paint_agenda(screen, laid)
+        elif transit_panel is not None:
+            side = "transit"
+            panel = transit_panel
+    if side == "transit" and transit_panel is not None:
         draw_transit_panel(
             screen,
             transit_data,
             config,
-            column_left=weather_layout["column_left"],
-            start_y=transit_start_y,
+            column_left=column_left,
+            start_y=transit_panel.y,
             margin_right=margin_right,
             bg_surf=bg_surf,
             transit_phase_t=transit_phase_t,
+        )
+        panel = transit_panel
+
+    if frame_metrics is not None:
+        frame_metrics.clear()
+        frame_metrics.update(
+            {
+                "side": side,
+                "weather_top": block_top_y,
+                "weather_bottom": weather_layout["bottom_y"],
+                "transit_top": None if transit_panel is None else transit_panel.y,
+                "panel": panel,
+                "column_left": column_left,
+            }
         )
 
     pygame.display.flip()

@@ -9,3 +9,5 @@ IMAGES_DIR = str(REPO_ROOT / "images")
 LOCALES_DIR = REPO_ROOT / "locale"
 GTFS_CACHE_PATH = REPO_ROOT / "cache" / "gtfs_stm.zip"
 METRO_INDEX_CACHE_PATH = REPO_ROOT / "cache" / "metro_index.json"
+CALENDAR_CACHE_PATH = REPO_ROOT / "cache" / "calendar.ics"
+CALENDAR_META_PATH = REPO_ROOT / "cache" / "calendar.meta.json"

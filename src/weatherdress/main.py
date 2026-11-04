@@ -6,6 +6,7 @@ import time
 
 import pygame
 
+from . import calendar_feed
 from . import debug_preview
 from . import display
 from . import i18n
@@ -140,6 +141,9 @@ def main():
 
         threading.Thread(target=_init_metro_index, daemon=True).start()
 
+    # Le cache valide est chargé avant le thread réseau. La boucle ne lit que l'instantané.
+    calendar_fetcher = calendar_feed.start_in_background(config)
+
     clock = pygame.time.Clock()
 
     while True:
@@ -219,6 +223,8 @@ def main():
                 config,
                 transit_data=transit_for_render,
                 transit_phase_t=now,
+                calendar_events=calendar_feed.events_for_render(calendar_fetcher),
+                calendar_phase_t=now,
             )
         elif last_weather_error:
             display.render_status(
