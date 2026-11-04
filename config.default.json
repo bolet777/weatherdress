@@ -25,7 +25,10 @@
     "weather_temp_font_min": 52,
     "weather_temp_font_max": 102,
     "weather_desc_font_min": 22,
-    "weather_desc_font_max": 38
+    "weather_desc_font_max": 38,
+    "time_font_min": 48,
+    "time_font_max": 72,
+    "time_pill_bg": [16, 39, 67, 242]
   },
   "background_color": [255, 255, 255],
   "circle_background_color": [230, 230, 230],

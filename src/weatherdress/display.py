@@ -406,32 +406,69 @@ def transit_panel_reserved_height(config):
 
 TIME_PILL_AA_SCALE = 3
 TIME_PILL_TOP_MARGIN = 12
+# Part de la hauteur d’écran visée pour la police. 0,15 × 480 = 72 px,
+# taille dont le glyphe « 08:49 » occupe ~8 % de la hauteur (pilule de référence).
+TIME_PILL_FONT_FRAC = 0.15
+TIME_PILL_FG = (248, 248, 248)
+TIME_PILL_BG_DEFAULT = (16, 39, 67, 242)
 
 
-def _time_pill_metrics(screen_h):
-    """Tailles de la pilule horloge proportionnelles à la hauteur d’écran."""
+def _clamp_byte(value):
+    return max(0, min(255, int(value)))
+
+
+def _time_pill_bg(layout):
+    """Fond de la pilule : [R, G, B] (opaque) ou [R, G, B, A]."""
+    raw = layout.get("time_pill_bg") if isinstance(layout, dict) else None
+    if isinstance(raw, (list, tuple)) and len(raw) in (3, 4):
+        try:
+            channels = [_clamp_byte(c) for c in raw]
+        except (TypeError, ValueError):
+            return TIME_PILL_BG_DEFAULT
+        if len(channels) == 3:
+            channels.append(255)
+        return tuple(channels)
+    return TIME_PILL_BG_DEFAULT
+
+
+def _time_pill_layout(layout):
+    merged = dict(layout_config.DEFAULT_LAYOUT)
+    if isinstance(layout, dict):
+        merged.update(layout)
+    return merged
+
+
+def _time_pill_metrics(screen_h, layout=None):
+    """Tailles de la pilule horloge. La police suit l’écran entre min et max."""
+    layout = _time_pill_layout(layout)
     h = max(240, int(screen_h))
-    font_px = max(30, min(52, int(round(h * 0.078))))
-    pad_y = max(10, int(round(font_px * 0.38)))
-    pad_x = max(16, int(round(font_px * 0.62)))
-    icon_r = max(12, int(round(font_px * 0.44)))
-    gap = max(9, int(round(font_px * 0.34)))
-    border_r = max(11, int(round(font_px * 0.4)))
-    pill_h = max(font_px + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4)
+    font_px = _font_size_clamped(
+        layout, "time_font_min", "time_font_max", h, TIME_PILL_FONT_FRAC
+    )
+    font_px = max(12, font_px)
+    # Marges serrées : le glyphe remplit la capsule, comme sur la pilule de référence.
+    pad_y = max(6, int(round(font_px * 0.14)))
+    pad_x = max(12, int(round(font_px * 0.39)))
+    icon_r = max(10, int(round(font_px * 0.29)))
+    gap = max(8, int(round(font_px * 0.28)))
+    probe = pygame.font.SysFont("sans-serif", font_px, bold=False)
+    text_h = probe.size("00:00")[1]
+    pill_h = max(text_h + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4)
     return {
         "font_px": font_px,
         "pad_x": pad_x,
         "pad_y": pad_y,
         "icon_r": icon_r,
         "gap": gap,
-        "border_r": border_r,
+        "border_r": pill_h // 2,
         "pill_h": pill_h,
+        "bg": _time_pill_bg(layout),
     }
 
 
-def display_top_safe_margin(screen_h):
+def display_top_safe_margin(screen_h, layout=None):
     """Espace réservé sous le bord haut (pilule horloge + marge)."""
-    m = _time_pill_metrics(screen_h)
+    m = _time_pill_metrics(screen_h, layout)
     return TIME_PILL_TOP_MARGIN + m["pill_h"] + 8
 
 
@@ -455,13 +492,13 @@ def _draw_simple_clock_icon(surface, center, radius, color, line_width):
     )
 
 
-def draw_time_pill(surface, screen_w, screen_h):
+def draw_time_pill(surface, screen_w, screen_h, layout=None):
     """Heure locale centrée en haut : dessin HR + smoothscale (bords lissés)."""
     s = TIME_PILL_AA_SCALE
     t_str = datetime.now().strftime("%H:%M")
-    fg = (248, 248, 248)
-    bg = (20, 22, 28, 200)
-    m = _time_pill_metrics(screen_h)
+    fg = TIME_PILL_FG
+    m = _time_pill_metrics(screen_h, layout)
+    bg = m["bg"]
 
     font_hi = pygame.font.SysFont("sans-serif", m["font_px"] * s, bold=False)
     text_surf = font_hi.render(t_str, True, fg)
@@ -471,11 +508,11 @@ def draw_time_pill(surface, screen_w, screen_h):
     pad_y = m["pad_y"] * s
     icon_r = m["icon_r"] * s
     gap = m["gap"] * s
-    br = m["border_r"] * s
     line_w = max(1, 2 * s)
 
     w_hi = 2 * pad_x + 2 * icon_r + gap + tw
     h_hi = max(th + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4 * s)
+    br = h_hi // 2
 
     pill_hi = pygame.Surface((w_hi, h_hi), pygame.SRCALPHA)
     pygame.draw.rect(pill_hi, bg, pill_hi.get_rect(), border_radius=br)
@@ -700,7 +737,7 @@ def draw_weather_text_block(
     top_safe = (
         int(top_safe_px)
         if top_safe_px is not None
-        else display_top_safe_margin(screen_h) + 4
+        else display_top_safe_margin(screen_h, layout) + 4
     )
 
     if mode == "screen_right":
@@ -1138,11 +1175,12 @@ def render(
     else:
         screen.fill(background_color(config))
 
-    draw_time_pill(screen, screen_w, screen_h)
+    layout = layout_config.effective_layout(config)
+    draw_time_pill(screen, screen_w, screen_h, layout)
 
     use_photo_background = bg_surf is not None
     use_circle = not use_photo_background
-    top_safe = display_top_safe_margin(screen_h)
+    top_safe = display_top_safe_margin(screen_h, layout)
 
     # Médaillon : uniquement sans image météo plein écran (sinon personnage + texte sur le fond photo)
     if not use_photo_background:
@@ -1160,7 +1198,6 @@ def render(
     char_img_src = load_image(char_path) if char_path else None
     char_img = None
 
-    layout = layout_config.effective_layout(config)
     char_center_x = int(screen_w * float(layout["character_center_x_pct"]))
     char_y_fallback = usable_h // 2 + int(layout["character_center_y_offset_px"])
     char_max_h = int(usable_h * float(layout["character_max_height_pct"]))

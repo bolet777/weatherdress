@@ -7,6 +7,8 @@ def test_effective_layout_defaults():
     assert L["weather_mode"] == "after_character"
     assert L["character_center_x_pct"] == 0.28
     assert L["weather_transit_vertical_offset_px"] == 0
+    assert L["time_font_max"] == 72
+    assert L["time_pill_bg"] == [16, 39, 67, 242]
 
 
 def test_effective_layout_override():

@@ -28,6 +28,11 @@ DEFAULT_LAYOUT = {
     "weather_temp_font_max": 102,
     "weather_desc_font_min": 22,
     "weather_desc_font_max": 38,
+    # Heure (pilule du haut). Sur 480 px de haut, la taille retenue est le max.
+    "time_font_min": 48,
+    "time_font_max": 72,
+    # Fond de la pilule : [R, G, B] ou [R, G, B, A]. Le 4e canal est l’opacité.
+    "time_pill_bg": [16, 39, 67, 242],
 }
 
 

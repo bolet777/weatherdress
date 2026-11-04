@@ -37,8 +37,10 @@ Chaque taille est choisie entre **min** et **max** (pixels), en restant cohéren
 
 - `weather_temp_font_min` / `weather_temp_font_max` — température (gras).
 - `weather_desc_font_min` / `weather_desc_font_max` — description météo.
+- `time_font_min` / `time_font_max` — heure dans la pilule du haut. La taille suit la hauteur d’écran (environ 15 %), bornée par min et max. Défauts `48` / `72` : sur un écran de 480 px de haut, l’heure fait 72 px.
+- `time_pill_bg` — fond de la pilule, `[R, G, B]` ou `[R, G, B, A]`. Défaut `[16, 39, 67, 242]` (bleu marine, légèrement transparent).
 
-Pour agrandir le texte : augmentez surtout **min** et **max** de la température (et éventuellement de la description).
+Pour agrandir le texte : augmentez surtout **min** et **max** de la température (et éventuellement de la description). Pour agrandir l’heure, augmentez `time_font_max` (et `time_font_min` si l’écran est petit).
 
 ## Réglage rapide « colonne droite »
 

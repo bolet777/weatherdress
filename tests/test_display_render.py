@@ -63,9 +63,61 @@ def test_resolve_transit_panel_start_y_aligns_on_character_feet():
 
 
 def test_display_top_safe_margin_grows_with_screen():
-    small = display.display_top_safe_margin(480)
-    large = display.display_top_safe_margin(900)
+    small = display.display_top_safe_margin(320)
+    large = display.display_top_safe_margin(480)
     assert large > small
+
+
+def test_time_pill_default_matches_reference_on_480():
+    metrics = display._time_pill_metrics(480)
+    assert metrics["font_px"] == 72
+    assert metrics["bg"] == (16, 39, 67, 242)
+
+
+def test_time_pill_font_and_background_follow_layout():
+    small = {
+        "time_font_min": 40,
+        "time_font_max": 40,
+        "time_pill_bg": [1, 2, 3],
+    }
+    large = {
+        "time_font_min": 90,
+        "time_font_max": 90,
+        "time_pill_bg": [9, 8, 7, 200],
+    }
+    small_m = display._time_pill_metrics(480, small)
+    large_m = display._time_pill_metrics(480, large)
+    assert small_m["font_px"] == 40
+    assert large_m["font_px"] == 90
+    assert large_m["pill_h"] > small_m["pill_h"]
+    assert small_m["bg"] == (1, 2, 3, 255)
+    assert large_m["bg"] == (9, 8, 7, 200)
+    assert display._time_pill_metrics(480, {"time_pill_bg": "bleu"})["bg"] == (
+        16,
+        39,
+        67,
+        242,
+    )
+
+
+def test_draw_time_pill_paints_configured_background():
+    layout = {
+        "time_font_min": 72,
+        "time_font_max": 72,
+        "time_pill_bg": [10, 20, 40, 255],
+    }
+    surf = pygame.Surface((800, 200), pygame.SRCALPHA)
+    display.draw_time_pill(surf, 800, 200, layout)
+    found = False
+    for y in range(8, 120):
+        for x in range(280, 520):
+            r, g, b, a = surf.get_at((x, y))
+            if abs(r - 10) < 12 and abs(g - 20) < 12 and abs(b - 40) < 18 and a > 180:
+                found = True
+                break
+        if found:
+            break
+    assert found
 
 
 def test_transit_max_rows_allows_bus_and_metro_when_anchored_on_feet():

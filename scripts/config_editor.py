@@ -294,6 +294,29 @@ FIELDS = {
             "Plafond utilisé quand l’écran est grand."
         ),
     },
+    "layout.time_font_min": {
+        "label": "Taille min. heure",
+        "help": (
+            "Taille minimale de l’heure, en pixels. "
+            "La taille suit la hauteur d’écran et ne descend pas sous ce plancher."
+        ),
+    },
+    "layout.time_font_max": {
+        "label": "Taille max. heure",
+        "help": (
+            "Taille maximale de l’heure, en pixels. "
+            "Sur un écran de 480 px de haut, le défaut (72) est ce plafond : "
+            "l’heure a la taille de la pilule de référence. "
+            "Augmenter cette valeur agrandit l’heure sur un grand écran."
+        ),
+    },
+    "layout.time_pill_bg": {
+        "label": "Fond de l'heure",
+        "help": (
+            "Couleur de fond de la pilule d’heure, [R, G, B] ou [R, G, B, A]. "
+            "Le 4e nombre (0–255) est l’opacité ; sans lui, le fond est opaque."
+        ),
+    },
     "accessories_column.plate_color": {
         "label": "Couleur du disque",
         "help": (
