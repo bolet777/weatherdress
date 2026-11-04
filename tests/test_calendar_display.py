@@ -278,6 +278,18 @@ def test_calendar_alone_uses_the_space_under_the_weather(monkeypatch):
     assert _count_exact(baseline, metrics["panel"], WASH) == 0
 
 
+def test_compact_agenda_keeps_the_transit_rectangle(monkeypatch):
+    one = (_at(11, 15, "Piano"),)
+    many = _busy()
+    quiet, quiet_metrics = _paint(_config(), one, 15, monkeypatch)
+    busy, busy_metrics = _paint(_config(), many, 15, monkeypatch)
+    assert quiet_metrics["panel"] == busy_metrics["panel"]
+    assert quiet_metrics["weather_top"] == busy_metrics["weather_top"]
+    top = quiet_metrics["transit_top"]
+    assert _above(quiet, top) == _above(busy, top)
+    assert quiet_metrics["side"] == busy_metrics["side"] == "calendar"
+
+
 def test_screen_right_stays_free_of_the_agenda(monkeypatch):
     events = (_at(11, 15, "Piano"),)
     screen, metrics = _paint(

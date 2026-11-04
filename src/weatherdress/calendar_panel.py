@@ -12,7 +12,6 @@ import pygame
 
 HORIZON_DAYS = 4
 ELLIPSIS = "…"
-RAIL_W = 8
 PANEL_PAD = 12
 TIME_GAP = 10
 
@@ -68,11 +67,12 @@ class Piece:
 
 
 class AgendaLayout:
-    def __init__(self, show, panel, pieces, divider_y=None):
+    def __init__(self, show, panel, pieces, divider_y=None, strip_w=0):
         self.show = show
         self.panel = panel
         self.pieces = pieces
         self.divider_y = divider_y
+        self.strip_w = strip_w
 
 
 def display_enabled(config, events) -> bool:
@@ -218,11 +218,11 @@ def _font(px, bold):
 def _slots_for(style, panel_h, today_font, next_font, header_font):
     pad = PANEL_PAD
     inner = panel_h - 2 * pad
-    next_row = next_font.get_height() + style["gap_next"]
-    next_h = 3 * next_row - style["gap_next"]
+    rhythm = max(4, style["gap_today"])
+    next_row = next_font.get_height() + rhythm
+    next_h = 3 * next_row - rhythm
     header_h = header_font.get_height()
-    divider = 10
-    remain = inner - next_h - divider - header_h - 8
+    remain = inner - next_h - header_h - 3 * rhythm
     row = today_font.get_height() + style["gap_today"]
     if remain < today_font.get_height() or row <= 0:
         return 0, next_h, header_h
@@ -251,6 +251,13 @@ def _pick_style(panel_h):
     return chosen, fonts, slots
 
 
+def _strip_width(panel_w):
+    """Même largeur que le bandeau des cartes bus et métro."""
+    from . import display
+
+    return min(display.TRANSIT_STRIP_WIDTH, max(1, int(panel_w) // 3))
+
+
 def _piece(text, role, zone, x, y, font, color, day_offset=None):
     width, height = font.size(text)
     rect = pygame.Rect(x, y, width, height)
@@ -265,10 +272,12 @@ def layout_agenda(events, now, panel):
 
     style, (header_font, today_time, today_title, next_font), slots = _pick_style(panel.height)
     today = now.date()
-    content_left = panel.x + RAIL_W + PANEL_PAD
+    strip_w = _strip_width(panel.w)
+    content_left = panel.x + strip_w + PANEL_PAD
     content_right = panel.right - PANEL_PAD
     content_w = max(0, content_right - content_left)
     pieces = []
+    rhythm = max(4, style["gap_today"])
 
     header_text = "Aujourd'hui"
     date_text = format_header_date(today)
@@ -291,12 +300,11 @@ def layout_agenda(events, now, panel):
         )
     )
 
-    next_row_h = next_font.get_height() + style["gap_next"]
-    next_h = 3 * next_row_h - style["gap_next"]
-    next_top = panel.bottom - PANEL_PAD - next_h
+    next_row_h = next_font.get_height() + rhythm
+    next_h = 3 * next_row_h - rhythm
 
     today_events = events_on_day(events, today, now)
-    today_top = header_y + header_font.get_height() + 8
+    today_top = header_y + header_font.get_height() + rhythm
     row_h = max(today_time.get_height(), today_title.get_height()) + style["gap_today"]
     if not today_events:
         pieces.append(
@@ -339,8 +347,13 @@ def layout_agenda(events, now, panel):
     today_bottom = max(
         piece.rect.bottom for piece in pieces if piece.zone in ("header", "today")
     )
-    # Le bleu s'arrête sous le dernier événement. Le pied de page reste en bas.
-    divider_y = min(today_bottom + 10, next_top - 6)
+    # Le bleu s'arrête sous aujourd'hui. Les trois jours suivent tout de suite.
+    divider_y = today_bottom + rhythm
+    next_top = divider_y + rhythm
+    max_next_top = panel.bottom - PANEL_PAD - next_h
+    if next_top > max_next_top:
+        next_top = max_next_top
+        divider_y = min(divider_y, next_top - rhythm)
 
     day_labels = [format_day(today + timedelta(days=offset)) for offset in (1, 2, 3)]
     day_col = max(next_font.size(label)[0] for label in day_labels)
@@ -394,7 +407,7 @@ def layout_agenda(events, now, panel):
                 _piece(more, "more", "upcoming", more_x, y, next_font, NEXT_TIME, offset)
             )
 
-    return AgendaLayout(True, panel, pieces, divider_y)
+    return AgendaLayout(True, panel, pieces, divider_y, strip_w)
 
 
 def paint_agenda(screen, laid):
@@ -404,11 +417,12 @@ def paint_agenda(screen, laid):
     if panel.height <= 0 or not laid.show:
         return
     radius = display.TRANSIT_CARD_BORDER_RADIUS
+    strip_w = laid.strip_w or _strip_width(panel.w)
     display._transit_blit_card_shadow(screen, panel, radius)
     clip = screen.get_clip()
     screen.set_clip(panel)
     pygame.draw.rect(screen, display.TRANSIT_CARD_BG, panel, border_radius=radius)
-    rail = pygame.Rect(panel.x, panel.y, RAIL_W, panel.h)
+    rail = pygame.Rect(panel.x, panel.y, strip_w, panel.h)
     pygame.draw.rect(
         screen,
         display.TRANSIT_CARD_STRIP_BUS,
@@ -418,12 +432,12 @@ def paint_agenda(screen, laid):
     )
     if laid.divider_y is not None:
         wash = pygame.Rect(
-            panel.x + RAIL_W,
+            panel.x + strip_w,
             panel.y,
-            panel.w - RAIL_W,
+            max(0, panel.w - strip_w),
             max(0, laid.divider_y - panel.y),
         )
-        if wash.height > 0:
+        if wash.height > 0 and wash.width > 0:
             pygame.draw.rect(
                 screen,
                 WASH,
@@ -433,12 +447,54 @@ def paint_agenda(screen, laid):
         pygame.draw.line(
             screen,
             DIVIDER,
-            (panel.x + RAIL_W + 8, laid.divider_y),
+            (panel.x + strip_w + 8, laid.divider_y),
             (panel.right - 10, laid.divider_y),
             1,
         )
+    _blit_calendar_icon(screen, rail)
     screen.set_clip(clip)
     _paint_pieces(screen, laid)
+
+
+def _blit_calendar_icon(screen, strip):
+    """Icône calendrier blanche, centrée dans le bandeau."""
+    side = max(18, min(36, strip.w - 16, strip.h - 12))
+    if side < 12:
+        return
+    scale = 3
+    big = pygame.Surface((side * scale, side * scale), pygame.SRCALPHA)
+    s = scale
+    white = (255, 255, 255, 255)
+    width = 2 * s
+    body = pygame.Rect(2 * s, int(side * 0.24) * s, (side - 4) * s, int(side * 0.70) * s)
+    radius = 3 * s
+    pygame.draw.rect(big, white, body, width=width, border_radius=radius)
+    head_h = max(width * 2, body.h // 5)
+    head = pygame.Rect(body.left, body.top, body.w, head_h)
+    pygame.draw.rect(
+        big,
+        white,
+        head,
+        border_top_left_radius=radius,
+        border_top_right_radius=radius,
+    )
+    ring_r = max(2 * s, side * s // 10)
+    for frac in (0.30, 0.70):
+        center = (body.left + int(body.w * frac), body.top)
+        pygame.draw.circle(big, white, center, ring_r, width=width)
+    dot_r = max(s, side * s // 14)
+    cols = (0.34, 0.66)
+    rows = (0.48, 0.72)
+    for row in rows:
+        for col in cols:
+            pygame.draw.circle(
+                big,
+                white,
+                (body.left + int(body.w * col), body.top + int(body.h * row)),
+                dot_r,
+            )
+    icon = pygame.transform.smoothscale(big, (side, side))
+    screen.blit(icon, icon.get_rect(center=strip.center))
 
 
 def _paint_pieces(screen, laid):

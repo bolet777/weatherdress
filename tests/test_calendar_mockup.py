@@ -186,6 +186,45 @@ def test_blue_section_follows_today_event_count():
     assert short.divider_y < upcoming_top
 
 
+def test_strip_is_the_transit_column_and_days_follow_today():
+    from weatherdress import display
+
+    events = [
+        mockup.Event(
+            datetime(2026, 11, 4, 11, 0),
+            datetime(2026, 11, 4, 12, 0),
+            "Piano",
+        )
+    ]
+    tall = pygame.Rect(20, 40, 420, 320)
+    laid = mockup.layout_agenda(events, NOW, tall)
+    assert laid.strip_w == min(display.TRANSIT_STRIP_WIDTH, tall.w // 3)
+    assert all(piece.rect.left >= laid.panel.x + laid.strip_w for piece in laid.pieces)
+    today_bottom = max(piece.rect.bottom for piece in laid.pieces if piece.zone == "today")
+    upcoming = [piece for piece in laid.pieces if piece.role == "day"]
+    assert upcoming[0].rect.top - today_bottom < 36
+    day_tops = [piece.rect.top for piece in upcoming]
+    assert day_tops[1] - day_tops[0] == day_tops[2] - day_tops[1]
+    last_bottom = max(piece.rect.bottom for piece in laid.pieces if piece.zone == "upcoming")
+    assert laid.panel.bottom - last_bottom > upcoming[0].rect.top - today_bottom
+    screen = pygame.Surface((500, 400))
+    screen.fill((10, 20, 30))
+    mockup.paint_agenda(screen, laid)
+    strip = pygame.Rect(laid.panel.x, laid.panel.y, laid.strip_w, laid.panel.h)
+    blue = screen.get_at((strip.x + 4, strip.y + 10))
+    assert abs(blue.r - display.TRANSIT_CARD_STRIP_BUS[0]) < 8
+    assert abs(blue.g - display.TRANSIT_CARD_STRIP_BUS[1]) < 8
+    assert abs(blue.b - display.TRANSIT_CARD_STRIP_BUS[2]) < 8
+    found_white = False
+    cx, cy = strip.center
+    for y in range(cy - 16, cy + 16):
+        for x in range(cx - 16, cx + 16):
+            pixel = screen.get_at((x, y))
+            if pixel.r > 220 and pixel.g > 220 and pixel.b > 220:
+                found_white = True
+    assert found_white
+
+
 def test_fit_ellipsis_keeps_short_text():
     font = pygame.font.SysFont("sans-serif", 20, bold=False)
     assert mockup.fit_ellipsis(font, "Piano", 400) == "Piano"
