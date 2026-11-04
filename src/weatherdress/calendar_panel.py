@@ -14,6 +14,12 @@ HORIZON_DAYS = 4
 ELLIPSIS = "…"
 PANEL_PAD = 12
 TIME_GAP = 10
+MIN_GAP = 4
+MAX_TODAY_SLOTS = 5
+_MIN_PX = 16
+_MAX_PX = 72
+# On ajoute une ligne seulement si la police reste proche du maximum lisible.
+_FONT_FLOOR = 0.88
 
 TODAY_TIME = (168, 82, 22)
 TODAY_TEXT = (28, 42, 84)
@@ -39,13 +45,6 @@ _MONTHS = (
     "déc.",
 )
 
-# Du plus lisible au plus compact. Le premier qui offre assez de lignes est gardé.
-_STYLES = (
-    {"header": 36, "today": 36, "next": 26, "gap_today": 4, "gap_next": 2, "min_slots": 4},
-    {"header": 32, "today": 34, "next": 24, "gap_today": 3, "gap_next": 2, "min_slots": 4},
-    {"header": 32, "today": 32, "next": 22, "gap_today": 3, "gap_next": 2, "min_slots": 3},
-    {"header": 26, "today": 26, "next": 18, "gap_today": 2, "gap_next": 2, "min_slots": 2},
-)
 
 
 class Event:
@@ -67,12 +66,13 @@ class Piece:
 
 
 class AgendaLayout:
-    def __init__(self, show, panel, pieces, divider_y=None, strip_w=0):
+    def __init__(self, show, panel, pieces, divider_y=None, strip_w=0, fonts=None):
         self.show = show
         self.panel = panel
         self.pieces = pieces
         self.divider_y = divider_y
         self.strip_w = strip_w
+        self.fonts = fonts
 
 
 def display_enabled(config, events) -> bool:
@@ -215,40 +215,110 @@ def _font(px, bold):
     return pygame.font.SysFont("sans-serif", int(px), bold=bold)
 
 
-def _slots_for(style, panel_h, today_font, next_font, header_font):
-    pad = PANEL_PAD
-    inner = panel_h - 2 * pad
-    rhythm = max(4, style["gap_today"])
-    next_row = next_font.get_height() + rhythm
-    next_h = 3 * next_row - rhythm
-    header_h = header_font.get_height()
-    remain = inner - next_h - header_h - 3 * rhythm
-    row = today_font.get_height() + style["gap_today"]
-    if remain < today_font.get_height() or row <= 0:
-        return 0, next_h, header_h
-    slots = 1 + (remain - today_font.get_height()) // row
-    return int(slots), next_h, header_h
+def _make_fonts(px):
+    """Aujourd'hui et les trois jours partagent la même taille. L'heure du jour reste en gras."""
+    px = int(px)
+    return (
+        _font(px, True),
+        _font(px, True),
+        _font(px, False),
+        _font(px, False),
+    )
 
 
-def _pick_style(panel_h):
-    """Polices : heures du jour en gras, titres d'événements en graisse normale."""
-    chosen = None
-    fonts = None
-    slots = 0
-    for style in _STYLES:
-        header_font = _font(style["header"], True)
-        today_time = _font(style["today"], True)
-        today_title = _font(style["today"], False)
-        next_font = _font(style["next"], False)
-        row_font = today_time if today_time.get_height() >= today_title.get_height() else today_title
-        slots, _next_h, _header_h = _slots_for(
-            style, panel_h, row_font, next_font, header_font
+def _row_height(fonts):
+    return max(font.get_height() for font in fonts)
+
+
+def _title_reserve(font, title):
+    """Un titre court reste entier. Un titre long garde le budget d'un titre de 12 lettres."""
+    if not title:
+        return 0
+    if len(title) <= 12:
+        return font.size(title)[0]
+    return font.size("Anniversaire")[0]
+
+
+def _rows_fit(fonts, content_w, today_rows, upcoming_rows):
+    if content_w is None:
+        return True
+    header, today_time, today_title, next_font = fonts
+    header_w = header.size("Aujourd'hui")[0] + header.size("mer. 4")[0] + 16
+    if header_w > content_w:
+        return False
+    if today_rows:
+        time_w = max(today_time.size(label)[0] for label, _title, _more in today_rows)
+        for label, title, more in today_rows:
+            width = time_w + TIME_GAP + _title_reserve(today_title, title)
+            if more:
+                width += TIME_GAP + today_title.size(more)[0]
+            if width > content_w:
+                return False
+    if not upcoming_rows:
+        return True
+    day_w = max(next_font.size(day)[0] for day, _time, _title, _more in upcoming_rows)
+    time_w = max(next_font.size(label)[0] for _day, label, _title, _more in upcoming_rows)
+    for _day, _label, title, more in upcoming_rows:
+        width = day_w + TIME_GAP + time_w
+        if title:
+            width += TIME_GAP + _title_reserve(next_font, title)
+        if more:
+            width += TIME_GAP + next_font.size(more)[0]
+        if width > content_w:
+            return False
+    return True
+
+
+def _largest_fit(panel_h, slots, content_w, lo, hi, today_rows, upcoming_rows):
+    inner = int(panel_h) - 2 * PANEL_PAD
+    n_lines = 1 + int(slots) + 3
+    n_gaps = n_lines - 1
+    for px in range(int(hi), int(lo) - 1, -1):
+        fonts = _make_fonts(px)
+        if not _rows_fit(fonts, content_w, today_rows, upcoming_rows):
+            continue
+        row_h = _row_height(fonts)
+        if n_lines * row_h + n_gaps * MIN_GAP <= inner:
+            return px, fonts, row_h
+    return None
+
+
+def _today_rows_for(events, slots):
+    shown = list(events[:slots])
+    hidden = len(events) - len(shown)
+    rows = []
+    for index, event in enumerate(shown):
+        more = f"+{hidden}" if hidden and index == len(shown) - 1 else ""
+        rows.append((_time_label(event), event.title, more))
+    return rows
+
+
+def _pick_style(panel_h, today_events=(), content_w=None, upcoming_rows=()):
+    """Le plus grand corps qui laisse les heures entières, puis autant de lignes que ce corps permet."""
+    today_events = list(today_events or [])
+    wanted = 1 if not today_events else min(MAX_TODAY_SLOTS, len(today_events))
+    hi = _MAX_PX
+    one_rows = _today_rows_for(today_events, 1)
+    one = _largest_fit(panel_h, 1, content_w, _MIN_PX, hi, one_rows, upcoming_rows)
+    if one is None:
+        fonts = _make_fonts(_MIN_PX)
+        return {"px": _MIN_PX}, fonts, 1
+    floor = max(_MIN_PX, int(one[0] * _FONT_FLOOR))
+    for slots in range(wanted, 0, -1):
+        found = _largest_fit(
+            panel_h,
+            slots,
+            content_w,
+            floor,
+            hi,
+            _today_rows_for(today_events, slots),
+            upcoming_rows,
         )
-        chosen = style
-        fonts = (header_font, today_time, today_title, next_font)
-        if slots >= style["min_slots"]:
-            break
-    return chosen, fonts, slots
+        if found is not None:
+            px, fonts, _row_h = found
+            return {"px": px}, fonts, slots
+    px, fonts, _row_h = one
+    return {"px": px}, fonts, 1
 
 
 def _strip_width(panel_w):
@@ -270,14 +340,29 @@ def layout_agenda(events, now, panel):
     if not should_show_agenda(events, now) or panel.width < 80 or panel.height < 48:
         return AgendaLayout(False, panel, [])
 
-    style, (header_font, today_time, today_title, next_font), slots = _pick_style(panel.height)
     today = now.date()
     strip_w = _strip_width(panel.w)
     content_left = panel.x + strip_w + PANEL_PAD
     content_right = panel.right - PANEL_PAD
     content_w = max(0, content_right - content_left)
+    today_events = events_on_day(events, today, now)
+    upcoming_rows = []
+    for offset in (1, 2, 3):
+        day = today + timedelta(days=offset)
+        found = events_on_day(events, day, now)
+        label = _time_label(found[0]) if found else "—"
+        title = found[0].title if found else ""
+        more = f"+{len(found) - 1}" if found and len(found) > 1 else ""
+        upcoming_rows.append((format_day(day), label, title, more))
+    _style, fonts, slots = _pick_style(panel.height, today_events, content_w, upcoming_rows)
+    header_font, today_time, today_title, next_font = fonts
     pieces = []
-    rhythm = max(4, style["gap_today"])
+    n_lines = 1 + slots + 3
+    n_gaps = n_lines - 1
+    row_h = _row_height(fonts)
+    inner = panel.h - 2 * PANEL_PAD
+    gap = max(0, (inner - n_lines * row_h) // n_gaps)
+    stride = row_h + gap
 
     header_text = "Aujourd'hui"
     date_text = format_header_date(today)
@@ -300,12 +385,7 @@ def layout_agenda(events, now, panel):
         )
     )
 
-    next_row_h = next_font.get_height() + rhythm
-    next_h = 3 * next_row_h - rhythm
-
-    today_events = events_on_day(events, today, now)
-    today_top = header_y + header_font.get_height() + rhythm
-    row_h = max(today_time.get_height(), today_title.get_height()) + style["gap_today"]
+    today_top = header_y + stride
     if not today_events:
         pieces.append(
             _piece("—", "dash", "today", content_left, today_top, today_title, TODAY_TEXT, 0)
@@ -316,7 +396,7 @@ def layout_agenda(events, now, panel):
         labels = [_time_label(event) for event in shown]
         time_col = max(today_time.size(label)[0] for label in labels)
         for index, event in enumerate(shown):
-            y = today_top + index * row_h
+            y = today_top + index * stride
             last = index == len(shown) - 1
             more = f"+{hidden}" if last and hidden else ""
             more_w = today_title.size(more)[0] if more else 0
@@ -344,30 +424,15 @@ def layout_agenda(events, now, panel):
                     )
                 )
 
-    today_bottom = max(
-        piece.rect.bottom for piece in pieces if piece.zone in ("header", "today")
-    )
-    # Le bleu s'arrête sous aujourd'hui. Les trois jours suivent tout de suite.
-    divider_y = today_bottom + rhythm
-    next_top = divider_y + rhythm
-    max_next_top = panel.bottom - PANEL_PAD - next_h
-    if next_top > max_next_top:
-        next_top = max_next_top
-        divider_y = min(divider_y, next_top - rhythm)
+    next_top = header_y + (1 + slots) * stride
 
     day_labels = [format_day(today + timedelta(days=offset)) for offset in (1, 2, 3)]
     day_col = max(next_font.size(label)[0] for label in day_labels)
-    sample_times = ["00:00", "Journée"]
-    for offset in (1, 2, 3):
-        day = today + timedelta(days=offset)
-        found = events_on_day(events, day, now)
-        if found:
-            sample_times.append(_time_label(found[0]))
-    time_col = max(next_font.size(label)[0] for label in sample_times)
+    time_col = max(next_font.size(label)[0] for _day, label, _title, _more in upcoming_rows)
 
     for index, offset in enumerate((1, 2, 3)):
         day = today + timedelta(days=offset)
-        y = next_top + index * next_row_h
+        y = next_top + index * stride
         pieces.append(
             _piece(
                 day_labels[index],
@@ -407,7 +472,10 @@ def layout_agenda(events, now, panel):
                 _piece(more, "more", "upcoming", more_x, y, next_font, NEXT_TIME, offset)
             )
 
-    return AgendaLayout(True, panel, pieces, divider_y, strip_w)
+    today_bottom = max(piece.rect.bottom for piece in pieces if piece.zone == "today")
+    upcoming_top = min(piece.rect.top for piece in pieces if piece.zone == "upcoming")
+    divider_y = today_bottom + max(1, (upcoming_top - today_bottom) // 2)
+    return AgendaLayout(True, panel, pieces, divider_y, strip_w, fonts)
 
 
 def paint_agenda(screen, laid):
@@ -499,7 +567,9 @@ def _blit_calendar_icon(screen, strip):
 
 def _paint_pieces(screen, laid):
     """Blitte chaque morceau avec la police qui a servi à mesurer le rectangle."""
-    _style, fonts, _slots = _pick_style(laid.panel.height)
+    fonts = laid.fonts
+    if not fonts:
+        _style, fonts, _slots = _pick_style(laid.panel.height)
     header_font, today_time, today_title, next_font = fonts
     clip = screen.get_clip()
     screen.set_clip(laid.panel)

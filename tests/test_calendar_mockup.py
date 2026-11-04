@@ -152,14 +152,15 @@ def test_event_titles_are_not_bold_and_times_stay_orange():
     start = datetime(2026, 11, 4, 11, 15)
     events = [mockup.Event(start, start + timedelta(hours=1), "Cours de natation")]
     laid = mockup.layout_agenda(events, NOW, PANEL)
-    _style, fonts, _slots = mockup._pick_style(PANEL.height)
-    _header, time_font, title_font, _next = fonts
+    _header, time_font, title_font, next_font = laid.fonts
     title = next(piece for piece in laid.pieces if piece.role == "title")
     clock = next(piece for piece in laid.pieces if piece.zone == "today" and piece.role == "time")
     assert title.rect.width == title_font.size(title.text)[0]
     assert clock.rect.width == time_font.size(clock.text)[0]
     assert not title_font.get_bold()
+    assert not next_font.get_bold()
     assert time_font.get_bold()
+    assert next_font.get_height() == title_font.get_height()
     assert clock.color == mockup.TODAY_TIME
     assert clock.text == "11:15"
 
@@ -202,11 +203,15 @@ def test_strip_is_the_transit_column_and_days_follow_today():
     assert all(piece.rect.left >= laid.panel.x + laid.strip_w for piece in laid.pieces)
     today_bottom = max(piece.rect.bottom for piece in laid.pieces if piece.zone == "today")
     upcoming = [piece for piece in laid.pieces if piece.role == "day"]
-    assert upcoming[0].rect.top - today_bottom < 36
     day_tops = [piece.rect.top for piece in upcoming]
     assert day_tops[1] - day_tops[0] == day_tops[2] - day_tops[1]
-    last_bottom = max(piece.rect.bottom for piece in laid.pieces if piece.zone == "upcoming")
-    assert laid.panel.bottom - last_bottom > upcoming[0].rect.top - today_bottom
+    tops = sorted({piece.rect.top for piece in laid.pieces})
+    steps = [tops[index + 1] - tops[index] for index in range(len(tops) - 1)]
+    assert max(steps) == min(steps)
+    last_bottom = max(piece.rect.bottom for piece in laid.pieces)
+    assert upcoming[0].rect.top > today_bottom
+    assert laid.panel.bottom - last_bottom <= 20
+    assert laid.fonts[3].get_height() == laid.fonts[2].get_height()
     screen = pygame.Surface((500, 400))
     screen.fill((10, 20, 30))
     mockup.paint_agenda(screen, laid)
@@ -223,6 +228,65 @@ def test_strip_is_the_transit_column_and_days_follow_today():
             if pixel.r > 220 and pixel.g > 220 and pixel.b > 220:
                 found_white = True
     assert found_white
+
+
+def test_type_and_spacing_follow_the_event_count():
+    one = [
+        mockup.Event(
+            datetime(2026, 11, 4, 11, 0),
+            datetime(2026, 11, 4, 12, 0),
+            "Piano",
+        )
+    ]
+    none_today = [
+        mockup.Event(
+            datetime(2026, 11, 5, 9, 0),
+            datetime(2026, 11, 5, 10, 0),
+            "Dentiste",
+        ),
+        mockup.Event(
+            datetime(2026, 11, 5, 14, 0),
+            datetime(2026, 11, 5, 15, 0),
+            "Réunion",
+        ),
+    ]
+    several = []
+    for hour in (10, 11, 13, 15, 17, 20):
+        start = datetime(2026, 11, 4, hour, 0)
+        several.append(mockup.Event(start, start + timedelta(hours=1), f"Cours {hour}"))
+    several.append(
+        mockup.Event(
+            datetime(2026, 11, 5, 9, 0),
+            datetime(2026, 11, 5, 10, 0),
+            "Dentiste",
+        )
+    )
+    quiet = mockup.layout_agenda(none_today, NOW, PANEL)
+    single = mockup.layout_agenda(one, NOW, PANEL)
+    busy = mockup.layout_agenda(several, NOW, PANEL)
+    assert quiet.panel == single.panel == busy.panel
+    assert any(piece.text == "—" and piece.zone == "today" for piece in quiet.pieces)
+    assert quiet.fonts[3].get_height() == quiet.fonts[2].get_height()
+    assert single.fonts[3].get_height() == single.fonts[2].get_height()
+    assert busy.fonts[3].get_height() == busy.fonts[2].get_height()
+    assert busy.fonts[3].get_height() >= int(max(quiet.fonts[3].get_height(), single.fonts[3].get_height()) * 0.7)
+    today_titles = [piece for piece in busy.pieces if piece.zone == "today" and piece.role == "title"]
+    assert len(today_titles) >= 2
+    tomorrow = [piece for piece in quiet.pieces if piece.day_offset == 1 and piece.role == "title"]
+    assert len(tomorrow) == 1
+    assert any(piece.day_offset == 1 and piece.role == "more" and piece.text == "+1" for piece in quiet.pieces)
+    for laid in (quiet, single, busy):
+        assert all(laid.panel.contains(piece.rect) for piece in laid.pieces)
+        last = max(piece.rect.bottom for piece in laid.pieces)
+        assert laid.panel.bottom - last <= 20
+        tops = sorted({piece.rect.top for piece in laid.pieces})
+        steps = [tops[index + 1] - tops[index] for index in range(len(tops) - 1)]
+        assert max(steps) == min(steps)
+    short_panel = pygame.Rect(20, 40, 340, 150)
+    tall_panel = pygame.Rect(20, 40, 560, 320)
+    short = mockup.layout_agenda(one, NOW, short_panel)
+    tall = mockup.layout_agenda(one, NOW, tall_panel)
+    assert tall.fonts[3].get_height() > short.fonts[3].get_height()
 
 
 def test_fit_ellipsis_keeps_short_text():

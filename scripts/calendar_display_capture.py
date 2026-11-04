@@ -51,6 +51,7 @@ def captures(config):
     typical = events_for_scenario("journee-type", NOW)
     busy = events_for_scenario("journee-chargee", NOW)
     quiet = events_for_scenario("aujourd-hui-vide", NOW)
+    crowded = events_for_scenario("titres-longs", NOW)
     return (
         ("01-transport", _scene(config, transit=True, rotate=15, phase=0, events=typical)),
         ("02-agenda", _scene(config, transit=True, rotate=15, phase=15, events=typical)),
@@ -60,6 +61,7 @@ def captures(config):
         ("06-sans-transport", _scene(config, transit=False, rotate=15, phase=15, events=[])),
         ("07-debordement", _scene(config, transit=True, rotate=15, phase=15, events=busy)),
         ("08-aujourd-hui-vide", _scene(config, transit=True, rotate=15, phase=15, events=quiet)),
+        ("09-plusieurs-par-jour", _scene(config, transit=True, rotate=15, phase=15, events=crowded)),
     )
 
 
