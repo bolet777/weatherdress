@@ -73,6 +73,34 @@ def test_event_in_three_days_shows_today_dash():
     assert upcoming == ["Anniversaire"]
 
 
+def _all_day(day, title):
+    start = datetime.combine(day, datetime.min.time())
+    return mockup.Event(start, start + timedelta(days=1), title, all_day=True)
+
+
+def test_long_all_day_title_drops_journee_and_keeps_the_place():
+    day = NOW.date() + timedelta(days=3)
+    title = "Centre des Sciences - Ubi"
+    laid = mockup.layout_agenda([_all_day(day, title)], NOW, PANEL)
+    row = [piece for piece in laid.pieces if piece.day_offset == 3]
+    assert [piece.text for piece in row if piece.role == "time"] == []
+    shown = next(piece.text for piece in row if piece.role == "title")
+    assert shown.startswith("Centre des Sciences")
+    assert len(shown) > len("Centre des Scien")
+    assert all(laid.panel.contains(piece.rect) for piece in laid.pieces)
+    day_piece = next(piece for piece in row if piece.role == "day")
+    title_piece = next(piece for piece in row if piece.role == "title")
+    assert day_piece.rect.right + mockup.TIME_GAP <= title_piece.rect.left
+
+
+def test_short_all_day_title_keeps_journee():
+    day = NOW.date() + timedelta(days=1)
+    laid = mockup.layout_agenda([_all_day(day, "Souper")], NOW, PANEL)
+    row = [piece for piece in laid.pieces if piece.day_offset == 1]
+    assert [piece.text for piece in row if piece.role == "time"] == ["Journée"]
+    assert [piece.text for piece in row if piece.role == "title"] == ["Souper"]
+
+
 def test_nearest_events_and_plus_n_skip_finished():
     laid = mockup.layout_agenda(_ended_and_six(), NOW, PANEL)
     titles = [piece for piece in laid.pieces if piece.zone == "today" and piece.role == "title"]

@@ -211,6 +211,15 @@ def _time_label(event):
     return event.start.strftime("%H:%M")
 
 
+def _all_day_label_fits(time_font, title_font, title, room, more=""):
+    """Vrai si « Journée » et le titre entier tiennent dans `room`."""
+    if not title:
+        return True
+    more_w = (TIME_GAP + title_font.size(more)[0]) if more else 0
+    need = time_font.size("Journée")[0] + TIME_GAP + title_font.size(title)[0] + more_w
+    return need <= room
+
+
 def _font(px, bold):
     return pygame.font.SysFont("sans-serif", int(px), bold=bold)
 
@@ -393,17 +402,28 @@ def layout_agenda(events, now, panel):
     else:
         shown = today_events[: max(1, slots)]
         hidden = len(today_events) - len(shown)
-        labels = [_time_label(event) for event in shown]
-        time_col = max(today_time.size(label)[0] for label in labels)
+        visible = []
         for index, event in enumerate(shown):
-            y = today_top + index * stride
             last = index == len(shown) - 1
             more = f"+{hidden}" if last and hidden else ""
+            label = _time_label(event)
+            if event.all_day and not _all_day_label_fits(
+                today_time, today_title, event.title, content_w, more
+            ):
+                label = ""
+            visible.append((event, label, more))
+        timed = [label for _event, label, _more in visible if label]
+        time_col = max((today_time.size(label)[0] for label in timed), default=0)
+        for index, (event, label, more) in enumerate(visible):
+            y = today_top + index * stride
             more_w = today_title.size(more)[0] if more else 0
-            pieces.append(
-                _piece(labels[index], "time", "today", content_left, y, today_time, TODAY_TIME, 0)
-            )
-            title_x = content_left + time_col + TIME_GAP
+            if label:
+                pieces.append(
+                    _piece(label, "time", "today", content_left, y, today_time, TODAY_TIME, 0)
+                )
+                title_x = content_left + time_col + TIME_GAP
+            else:
+                title_x = content_left
             reserve = (TIME_GAP + more_w) if more else 0
             title = fit_ellipsis(today_title, event.title, content_right - title_x - reserve)
             if title:
@@ -426,16 +446,26 @@ def layout_agenda(events, now, panel):
 
     next_top = header_y + (1 + slots) * stride
 
-    day_labels = [format_day(today + timedelta(days=offset)) for offset in (1, 2, 3)]
-    day_col = max(next_font.size(label)[0] for label in day_labels)
-    time_col = max(next_font.size(label)[0] for _day, label, _title, _more in upcoming_rows)
+    day_col = max(next_font.size(day)[0] for day, _label, _title, _more in upcoming_rows)
+    time_room = content_w - day_col - TIME_GAP
+    shown_upcoming = []
+    for day_label, label, title, more in upcoming_rows:
+        if label == "Journée" and not _all_day_label_fits(
+            next_font, next_font, title, time_room, more
+        ):
+            label = ""
+        shown_upcoming.append((day_label, label, title, more))
+    time_col = max(
+        (next_font.size(label)[0] for _day, label, _title, _more in shown_upcoming if label),
+        default=0,
+    )
 
-    for index, offset in enumerate((1, 2, 3)):
-        day = today + timedelta(days=offset)
+    for index, (day_label, label, title_text, more) in enumerate(shown_upcoming):
         y = next_top + index * stride
+        offset = index + 1
         pieces.append(
             _piece(
-                day_labels[index],
+                day_label,
                 "day",
                 "upcoming",
                 content_left,
@@ -445,23 +475,22 @@ def layout_agenda(events, now, panel):
                 offset,
             )
         )
-        found = events_on_day(events, day, now)
         time_x = content_left + day_col + TIME_GAP
-        if not found:
+        if label == "—":
             pieces.append(
                 _piece("—", "dash", "upcoming", time_x, y, next_font, NEXT_TEXT, offset)
             )
             continue
-        label = _time_label(found[0])
-        pieces.append(
-            _piece(label, "time", "upcoming", time_x, y, next_font, NEXT_TIME, offset)
-        )
-        extra = len(found) - 1
-        more = f"+{extra}" if extra else ""
+        if label:
+            pieces.append(
+                _piece(label, "time", "upcoming", time_x, y, next_font, NEXT_TIME, offset)
+            )
+            title_x = time_x + time_col + TIME_GAP
+        else:
+            title_x = time_x
         more_w = next_font.size(more)[0] if more else 0
-        title_x = time_x + time_col + TIME_GAP
         reserve = (TIME_GAP + more_w) if more else 0
-        title = fit_ellipsis(next_font, found[0].title, content_right - title_x - reserve)
+        title = fit_ellipsis(next_font, title_text, content_right - title_x - reserve)
         if title:
             pieces.append(
                 _piece(title, "title", "upcoming", title_x, y, next_font, NEXT_TEXT, offset)
