@@ -595,10 +595,7 @@ def paint_agenda(screen, laid):
         top = laid.bands[0][0].top
         bottom = laid.bands[-1][0].bottom
         pygame.draw.line(screen, RULE, (laid.rule_x, top + 6), (laid.rule_x, bottom - 6), 1)
-    icon_center = None
-    if laid.bands:
-        icon_center = (rail.centerx, (laid.bands[0][0].top + laid.bands[-1][0].bottom) // 2)
-    _blit_calendar_icon(screen, rail, icon_center)
+    _blit_calendar_icon(screen, rail, rail.center)
     screen.set_clip(clip)
     _paint_pieces(screen, laid)
 

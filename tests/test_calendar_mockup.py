@@ -271,10 +271,9 @@ def test_strip_is_the_transit_column_and_days_follow_today():
     assert abs(blue.g - display.TRANSIT_CARD_STRIP_BUS[1]) < 8
     assert abs(blue.b - display.TRANSIT_CARD_STRIP_BUS[2]) < 8
     found_white = False
-    span_top = laid.bands[0][0].top
-    span_bottom = laid.bands[-1][0].bottom
-    for y in range(span_top, span_bottom):
-        for x in range(strip.x + 4, strip.right - 4):
+    cx, cy = strip.center
+    for y in range(cy - 20, cy + 20):
+        for x in range(cx - 16, cx + 16):
             pixel = screen.get_at((x, y))
             if pixel.r > 220 and pixel.g > 220 and pixel.b > 220:
                 found_white = True
