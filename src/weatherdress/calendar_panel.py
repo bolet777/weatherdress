@@ -27,7 +27,9 @@ TODAY_HEADER = (18, 52, 125)
 NEXT_TEXT = (70, 80, 102)
 NEXT_TIME = (56, 66, 92)
 WASH = (214, 228, 246)
+EVENT_WASH = (255, 244, 210)
 DIVIDER = (196, 204, 216)
+RULE = (176, 186, 198)
 
 _WEEKDAYS = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
 _MONTHS = (
@@ -66,13 +68,15 @@ class Piece:
 
 
 class AgendaLayout:
-    def __init__(self, show, panel, pieces, divider_y=None, strip_w=0, fonts=None):
+    def __init__(self, show, panel, pieces, divider_y=None, strip_w=0, fonts=None, bands=None, rule_x=None):
         self.show = show
         self.panel = panel
         self.pieces = pieces
         self.divider_y = divider_y
         self.strip_w = strip_w
         self.fonts = fonts
+        self.bands = bands or []
+        self.rule_x = rule_x
 
 
 def display_enabled(config, events) -> bool:
@@ -305,8 +309,15 @@ def _today_rows_for(events, slots):
 def _pick_style(panel_h, today_events=(), content_w=None, upcoming_rows=()):
     """Le plus grand corps qui laisse les heures entières, puis autant de lignes que ce corps permet."""
     today_events = list(today_events or [])
-    wanted = 1 if not today_events else min(MAX_TODAY_SLOTS, len(today_events))
     hi = _MAX_PX
+    if not today_events:
+        found = _largest_fit(panel_h, 0, content_w, _MIN_PX, hi, [], upcoming_rows)
+        if found is None:
+            fonts = _make_fonts(_MIN_PX)
+            return {"px": _MIN_PX}, fonts, 0
+        px, fonts, _row_h = found
+        return {"px": px}, fonts, 0
+    wanted = min(MAX_TODAY_SLOTS, len(today_events))
     one_rows = _today_rows_for(today_events, 1)
     one = _largest_fit(panel_h, 1, content_w, _MIN_PX, hi, one_rows, upcoming_rows)
     if one is None:
@@ -395,11 +406,7 @@ def layout_agenda(events, now, panel):
     )
 
     today_top = header_y + stride
-    if not today_events:
-        pieces.append(
-            _piece("—", "dash", "today", content_left, today_top, today_title, TODAY_TEXT, 0)
-        )
-    else:
+    if today_events:
         shown = today_events[: max(1, slots)]
         hidden = len(today_events) - len(shown)
         visible = []
@@ -501,10 +508,35 @@ def layout_agenda(events, now, panel):
                 _piece(more, "more", "upcoming", more_x, y, next_font, NEXT_TIME, offset)
             )
 
-    today_bottom = max(piece.rect.bottom for piece in pieces if piece.zone == "today")
+    today_bottom = max(
+        piece.rect.bottom for piece in pieces if piece.zone in ("header", "today")
+    )
     upcoming_top = min(piece.rect.top for piece in pieces if piece.zone == "upcoming")
     divider_y = today_bottom + max(1, (upcoming_top - today_bottom) // 2)
-    return AgendaLayout(True, panel, pieces, divider_y, strip_w, fonts)
+    bands = _day_bands(panel, strip_w, next_top, stride, row_h, divider_y, shown_upcoming)
+    rule_x = content_left + day_col + max(4, TIME_GAP // 2)
+    return AgendaLayout(True, panel, pieces, divider_y, strip_w, fonts, bands, rule_x)
+
+
+def _day_bands(panel, strip_w, next_top, stride, row_h, divider_y, rows):
+    """Trois bandes sous aujourd'hui. La bande d'un jour occupé est marquée."""
+    gap = max(0, stride - row_h)
+    tops = [next_top + index * stride for index in range(3)]
+    edges = [divider_y]
+    for index in range(2):
+        edges.append(tops[index] + row_h + max(1, gap // 2))
+    edges.append(min(panel.bottom - 2, tops[2] + row_h + max(1, gap // 2)))
+    bands = []
+    for index, (_day, label, title, _more) in enumerate(rows):
+        rect = pygame.Rect(
+            panel.x + strip_w,
+            edges[index],
+            max(0, panel.w - strip_w),
+            max(0, edges[index + 1] - edges[index]),
+        )
+        hot = bool(title) or label not in ("", "—")
+        bands.append((rect, hot))
+    return bands
 
 
 def paint_agenda(screen, laid):
@@ -548,12 +580,30 @@ def paint_agenda(screen, laid):
             (panel.right - 10, laid.divider_y),
             1,
         )
-    _blit_calendar_icon(screen, rail)
+    for index, (band, hot) in enumerate(laid.bands):
+        if hot and band.height > 0 and band.width > 0:
+            pygame.draw.rect(screen, EVENT_WASH, band)
+        if index:
+            pygame.draw.line(
+                screen,
+                DIVIDER,
+                (panel.x + strip_w + 8, band.top),
+                (panel.right - 10, band.top),
+                1,
+            )
+    if laid.rule_x is not None and laid.bands:
+        top = laid.bands[0][0].top
+        bottom = laid.bands[-1][0].bottom
+        pygame.draw.line(screen, RULE, (laid.rule_x, top + 6), (laid.rule_x, bottom - 6), 1)
+    icon_center = None
+    if laid.bands:
+        icon_center = (rail.centerx, (laid.bands[0][0].top + laid.bands[-1][0].bottom) // 2)
+    _blit_calendar_icon(screen, rail, icon_center)
     screen.set_clip(clip)
     _paint_pieces(screen, laid)
 
 
-def _blit_calendar_icon(screen, strip):
+def _blit_calendar_icon(screen, strip, center=None):
     """Icône calendrier blanche, centrée dans le bandeau."""
     side = max(18, min(36, strip.w - 16, strip.h - 12))
     if side < 12:
@@ -577,8 +627,8 @@ def _blit_calendar_icon(screen, strip):
     )
     ring_r = max(2 * s, side * s // 10)
     for frac in (0.30, 0.70):
-        center = (body.left + int(body.w * frac), body.top)
-        pygame.draw.circle(big, white, center, ring_r, width=width)
+        ring_at = (body.left + int(body.w * frac), body.top)
+        pygame.draw.circle(big, white, ring_at, ring_r, width=width)
     dot_r = max(s, side * s // 14)
     cols = (0.34, 0.66)
     rows = (0.48, 0.72)
@@ -591,7 +641,13 @@ def _blit_calendar_icon(screen, strip):
                 dot_r,
             )
     icon = pygame.transform.smoothscale(big, (side, side))
-    screen.blit(icon, icon.get_rect(center=strip.center))
+    point = center or strip.center
+    placed = icon.get_rect(center=(strip.centerx, point[1]))
+    if placed.top < strip.top + 4:
+        placed.top = strip.top + 4
+    if placed.bottom > strip.bottom - 4:
+        placed.bottom = strip.bottom - 4
+    screen.blit(icon, placed)
 
 
 def _paint_pieces(screen, laid):

@@ -64,7 +64,7 @@ def test_event_in_three_days_shows_today_dash():
         for piece in laid.pieces
         if piece.zone == "today" and piece.role == "dash"
     ]
-    assert today_dash == ["—"]
+    assert today_dash == []
     upcoming = [
         piece.text
         for piece in laid.pieces
@@ -91,6 +91,28 @@ def test_long_all_day_title_drops_journee_and_keeps_the_place():
     day_piece = next(piece for piece in row if piece.role == "day")
     title_piece = next(piece for piece in row if piece.role == "title")
     assert day_piece.rect.right + mockup.TIME_GAP <= title_piece.rect.left
+
+
+def test_upcoming_rows_align_on_a_rule_and_mark_the_busy_day():
+    day = NOW.date() + timedelta(days=1)
+    laid = mockup.layout_agenda([_all_day(day, "Centre des Sciences - Ubi")], NOW, PANEL)
+    content = [
+        piece
+        for piece in laid.pieces
+        if piece.zone == "upcoming" and piece.role in ("title", "dash", "time")
+    ]
+    assert len({piece.rect.left for piece in content}) == 1
+    assert laid.rule_x < content[0].rect.left
+    assert [hot for _rect, hot in laid.bands] == [True, False, False]
+    screen = pygame.Surface((500, 400))
+    screen.fill((255, 255, 255))
+    mockup.paint_agenda(screen, laid)
+    hot = laid.bands[0][0]
+    quiet = laid.bands[1][0]
+    marked = screen.get_at((hot.right - 6, hot.top + 3))
+    plain = screen.get_at((quiet.right - 6, quiet.top + 3))
+    assert marked.b < plain.b - 10
+    assert marked.r > 240
 
 
 def test_short_all_day_title_keeps_journee():
@@ -249,9 +271,10 @@ def test_strip_is_the_transit_column_and_days_follow_today():
     assert abs(blue.g - display.TRANSIT_CARD_STRIP_BUS[1]) < 8
     assert abs(blue.b - display.TRANSIT_CARD_STRIP_BUS[2]) < 8
     found_white = False
-    cx, cy = strip.center
-    for y in range(cy - 16, cy + 16):
-        for x in range(cx - 16, cx + 16):
+    span_top = laid.bands[0][0].top
+    span_bottom = laid.bands[-1][0].bottom
+    for y in range(span_top, span_bottom):
+        for x in range(strip.x + 4, strip.right - 4):
             pixel = screen.get_at((x, y))
             if pixel.r > 220 and pixel.g > 220 and pixel.b > 220:
                 found_white = True
@@ -293,7 +316,7 @@ def test_type_and_spacing_follow_the_event_count():
     single = mockup.layout_agenda(one, NOW, PANEL)
     busy = mockup.layout_agenda(several, NOW, PANEL)
     assert quiet.panel == single.panel == busy.panel
-    assert any(piece.text == "—" and piece.zone == "today" for piece in quiet.pieces)
+    assert not any(piece.zone == "today" for piece in quiet.pieces)
     assert quiet.fonts[3].get_height() == quiet.fonts[2].get_height()
     assert single.fonts[3].get_height() == single.fonts[2].get_height()
     assert busy.fonts[3].get_height() == busy.fonts[2].get_height()
