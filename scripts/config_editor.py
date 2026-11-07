@@ -458,6 +458,20 @@ FIELDS = {
             "0 laisse les transports affichés s'ils sont actifs, sinon l'agenda reste affiché."
         ),
     },
+    "ticker.enabled": {
+        "label": "Bandeau du bas",
+        "help": (
+            "Activé : une bande est réservée en bas de l'écran. "
+            "Désactivé : l'écran reprend toute la hauteur."
+        ),
+    },
+    "ticker.height_px": {
+        "label": "Hauteur du bandeau",
+        "help": (
+            "Hauteur réservée en bas de l'écran, en pixels, bornée de 24 à 64. "
+            "La bande reste vide tant qu'aucun texte n'est fourni."
+        ),
+    },
 }
 
 _GEAR = (
@@ -486,6 +500,7 @@ _SECTION_ORDER = (
     "Accessoires",
     "Transport",
     "Agenda",
+    "Bandeau",
     "Autres",
 )
 _METEO_KEYS = {
@@ -1201,6 +1216,8 @@ def _section_name(path):
         return "Transport"
     if top == "calendar":
         return "Agenda"
+    if top == "ticker":
+        return "Bandeau"
     if top in _METEO_KEYS:
         return "Météo"
     if top in _AMBIANCE_KEYS:

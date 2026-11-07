@@ -55,8 +55,10 @@ def test_default_file_covers_layout_and_app_keys():
         "debug_preview",
         "debug_preview_interval_seconds",
         "calendar",
+        "ticker",
     ):
         assert key in data
+    assert data["ticker"] == {"enabled": True, "height_px": 32}
     assert data["calendar"] == {
         "enabled": False,
         "url": "",

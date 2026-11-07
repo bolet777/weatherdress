@@ -71,5 +71,9 @@
     "url": "",
     "refresh_minutes": 30,
     "rotate_seconds": 15
+  },
+  "ticker": {
+    "enabled": true,
+    "height_px": 32
   }
 }
