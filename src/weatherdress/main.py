@@ -225,6 +225,7 @@ def main():
                 transit_phase_t=now,
                 calendar_events=calendar_feed.events_for_render(calendar_fetcher),
                 calendar_phase_t=now,
+                ticker_phase_t=now,
             )
         elif last_weather_error:
             display.render_status(

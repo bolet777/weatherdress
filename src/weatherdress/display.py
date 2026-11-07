@@ -11,6 +11,7 @@ from . import character_assets
 from .badges import BADGE_AA_SCALE
 from . import future_accessories_column
 from . import layout_config
+from . import ticker
 from . import transit as transit_module
 from . import weather_icons
 from .paths import IMAGES_DIR
@@ -405,6 +406,17 @@ def transit_panel_reserved_height(config):
     return 0
 
 
+def content_bottom_y(screen_h, reserved_px=0):
+    """Dernière ligne de contenu : marge de 4 px, plus le bandeau s'il est réservé."""
+    return int(screen_h) - 4 - max(0, int(reserved_px))
+
+
+def _bottom_limit(screen_h, content_bottom):
+    if content_bottom is None:
+        return int(screen_h) - 4
+    return int(content_bottom)
+
+
 TIME_PILL_AA_SCALE = 3
 TIME_PILL_TOP_MARGIN = 12
 # Part de la hauteur d’écran visée pour la police. 0,15 × 480 = 72 px,
@@ -542,19 +554,21 @@ def transit_panel_content_height(rows, row_stride):
     return (n - 1) * row_stride + card_h
 
 
-def transit_max_rows_from_start_y(screen_h, start_y, row_stride):
+def transit_max_rows_from_start_y(screen_h, start_y, row_stride, content_bottom=None):
     """
-    Nombre de cartes entières entre start_y et le bas de l’écran.
+    Nombre de cartes entières entre start_y et le bas utile.
     La dernière carte n’occupe que la hauteur de carte (pas un stride complet).
     """
     card_h = row_stride - TRANSIT_CARD_GAP
-    avail = (screen_h - 4) - int(start_y)
+    avail = _bottom_limit(screen_h, content_bottom) - int(start_y)
     if avail < card_h:
         return 0
     return 1 + (avail - card_h) // row_stride
 
 
-def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
+def resolve_transit_panel_start_y(
+    char_rect, rows, row_stride, screen_h, content_bottom=None
+):
     """
     Ancre le bas des cartes transport sur les pieds du personnage.
     Retourne None si aucune carte.
@@ -562,7 +576,7 @@ def resolve_transit_panel_start_y(char_rect, rows, row_stride, screen_h):
     if not rows:
         return None
     panel_h = transit_panel_content_height(rows, row_stride)
-    feet_y = min(int(char_rect.bottom), screen_h - 4)
+    feet_y = min(int(char_rect.bottom), _bottom_limit(screen_h, content_bottom))
     return feet_y - panel_h
 
 
@@ -573,6 +587,7 @@ def plan_right_column_vertical_layout(
     screen_h,
     top_safe_px,
     vertical_offset_px=0,
+    content_bottom=None,
 ):
     """
     Colonne droite (temp + desc + bus + métro) centrée verticalement sur le personnage.
@@ -581,7 +596,7 @@ def plan_right_column_vertical_layout(
     gap = TRANSIT_AFTER_WEATHER_GAP if transit_panel_h > 0 else 0
     total = int(weather_total_h) + gap + int(transit_panel_h)
     top = int(round(char_rect.centery - total / 2.0)) + int(vertical_offset_px)
-    max_top = screen_h - 4 - total
+    max_top = _bottom_limit(screen_h, content_bottom) - total
     top = max(int(top_safe_px), min(top, max_top))
     weather_top = top
     transit_top = top + int(weather_total_h) + gap if transit_panel_h > 0 else None
@@ -703,6 +718,7 @@ def draw_weather_text_block(
     block_top_y=None,
     top_safe_px=None,
     weather_prep=None,
+    content_bottom=None,
 ):
     """
     Température + description : position selon layout (après personnage ou bord droit).
@@ -741,9 +757,10 @@ def draw_weather_text_block(
         else display_top_safe_margin(screen_h, layout) + 4
     )
 
+    limit = _bottom_limit(screen_h, content_bottom)
     if mode == "screen_right":
         y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
-        y = max(top_safe, min(y, uh - total_h - 8))
+        y = max(top_safe, min(y, min(uh - total_h - 8, limit - total_h)))
         y += _blit_temperature_with_icon(
             surface,
             "right",
@@ -765,7 +782,7 @@ def draw_weather_text_block(
         return {"column_left": column_left, "bottom_y": y}
 
     y = int(block_top_y)
-    y = max(top_safe, min(y, screen_h - 4 - total_h))
+    y = max(top_safe, min(y, limit - total_h))
 
     y += _blit_temperature_with_icon(
         surface,
@@ -795,13 +812,15 @@ def _place_character_rect(
     char_y_fallback,
     screen_h,
     top_safe_margin,
+    content_bottom=None,
 ):
-    """Position verticale du sprite (centre par défaut, borné haut / bas écran)."""
+    """Position verticale du sprite (centre par défaut, borné haut / bas utile)."""
     char_rect.centery = char_y_fallback
     if char_rect.top < top_safe_margin:
         char_rect.top = top_safe_margin
-    if char_rect.bottom > screen_h - 4:
-        char_rect.bottom = screen_h - 4
+    limit = _bottom_limit(screen_h, content_bottom)
+    if char_rect.bottom > limit:
+        char_rect.bottom = limit
 
 
 def _transit_font_px(raw, default, *, lo=8, hi=120):
@@ -939,6 +958,7 @@ def _transit_panel_build_rows(
     screen_h,
     start_y,
     transit_phase_t=0.0,
+    content_bottom=None,
 ):
     """
     Liste des cartes transport à afficher (même logique que draw_transit_panel).
@@ -953,7 +973,9 @@ def _transit_panel_build_rows(
 
     card_layout = transit_card_layout(config)
     row_stride = card_layout["row_stride"]
-    max_rows = transit_max_rows_from_start_y(screen_h, start_y, row_stride)
+    max_rows = transit_max_rows_from_start_y(
+        screen_h, start_y, row_stride, content_bottom=content_bottom
+    )
     if max_rows < 1:
         return [], row_stride
 
@@ -1011,13 +1033,16 @@ def _transit_panel_build_rows(
     return rows[:max_rows], row_stride
 
 
-def transit_panel_last_visible_card_bottom(screen_h, start_y, rows, row_stride):
+def transit_panel_last_visible_card_bottom(
+    screen_h, start_y, rows, row_stride, content_bottom=None
+):
     """Bas de la dernière carte réellement visible (même coupe que la boucle de dessin)."""
     card_h = row_stride - TRANSIT_CARD_GAP
+    limit = _bottom_limit(screen_h, content_bottom)
     last_bottom = None
     for i, _ in enumerate(rows):
         card_y = int(start_y) + i * row_stride
-        if card_y + card_h > screen_h - 4:
+        if card_y + card_h > limit:
             break
         last_bottom = card_y + card_h
     return last_bottom
@@ -1033,6 +1058,7 @@ def draw_transit_panel(
     margin_right,
     bg_surf,
     transit_phase_t=0.0,
+    content_bottom=None,
 ):
     """
     transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
@@ -1052,6 +1078,7 @@ def draw_transit_panel(
         screen_h=screen_h,
         start_y=start_y,
         transit_phase_t=transit_phase_t,
+        content_bottom=content_bottom,
     )
 
     card_layout = transit_card_layout(config)
@@ -1081,7 +1108,7 @@ def draw_transit_panel(
 
     for i, (mode, title, subtitle, minutes, strip_color) in enumerate(rows):
         card_y = int(start_y) + i * row_stride
-        if card_y + card_h > screen_h - 4:
+        if card_y + card_h > _bottom_limit(screen_h, content_bottom):
             break
         card_rect = pygame.Rect(int(column_left), card_y, card_w, card_h)
         _transit_blit_card_shadow(screen, card_rect, br)
@@ -1147,11 +1174,14 @@ def render(
     transit_phase_t=0.0,
     calendar_events=None,
     calendar_phase_t=0.0,
+    ticker_phase_t=0.0,
     shown_at=None,
     frame_metrics=None,
 ):
     screen_w, screen_h = screen.get_size()
-    usable_h = max(120, screen_h - transit_panel_reserved_height(config))
+    band_h = ticker.band_height(config)
+    bottom = content_bottom_y(screen_h, band_h)
+    usable_h = max(120, screen_h - transit_panel_reserved_height(config) - band_h)
 
     bg_surf = None
     if config.get("use_weather_background", True):
@@ -1225,6 +1255,7 @@ def render(
         char_y_fallback=char_y_fallback,
         screen_h=screen_h,
         top_safe_margin=top_safe,
+        content_bottom=bottom,
     )
 
     margin_right = max(
@@ -1245,12 +1276,12 @@ def render(
     block_top_y = None
     transit_start_y = None
     transit_panel_h = 0
+    transit_rows = []
     v_off = int(layout.get("weather_transit_vertical_offset_px", 0))
     top_safe_weather = top_safe + 4
 
     if layout.get("weather_mode", "after_character") == "after_character":
         transit_panel_h = 0
-        transit_rows = []
         transit_row_stride = transit_card_layout(config)["row_stride"]
         if transit_module.transit_config_enabled(config):
             transit_rows, transit_row_stride = _transit_panel_build_rows(
@@ -1259,6 +1290,7 @@ def render(
                 screen_h=screen_h,
                 start_y=0,
                 transit_phase_t=transit_phase_t,
+                content_bottom=bottom,
             )
             transit_panel_h = transit_panel_content_height(
                 transit_rows, transit_row_stride
@@ -1270,10 +1302,14 @@ def render(
             screen_h,
             top_safe_weather,
             v_off,
+            content_bottom=bottom,
         )
         if transit_start_y is not None:
             max_rows = transit_max_rows_from_start_y(
-                screen_h, transit_start_y, transit_row_stride
+                screen_h,
+                transit_start_y,
+                transit_row_stride,
+                content_bottom=bottom,
             )
             if max_rows < len(transit_rows):
                 transit_rows = transit_rows[:max_rows]
@@ -1287,6 +1323,7 @@ def render(
                     screen_h,
                     top_safe_weather,
                     v_off,
+                    content_bottom=bottom,
                 )
 
     weather_layout = draw_weather_text_block(
@@ -1304,6 +1341,7 @@ def render(
         block_top_y=block_top_y,
         top_safe_px=top_safe_weather,
         weather_prep=weather_prep,
+        content_bottom=bottom,
     )
 
     if char_img:
@@ -1369,7 +1407,7 @@ def render(
                 column_left,
                 top,
                 card_w,
-                max(0, (screen_h - 4) - top),
+                max(0, bottom - top),
             )
         laid = calendar_panel.layout_agenda(calendar_events, shown, panel)
         if laid.show:
@@ -1387,8 +1425,11 @@ def render(
             margin_right=margin_right,
             bg_surf=bg_surf,
             transit_phase_t=transit_phase_t,
+            content_bottom=bottom,
         )
         panel = transit_panel
+
+    ticker.paint(screen, config, ticker_phase_t)
 
     if frame_metrics is not None:
         frame_metrics.clear()
@@ -1400,6 +1441,15 @@ def render(
                 "transit_top": None if transit_panel is None else transit_panel.y,
                 "panel": panel,
                 "column_left": column_left,
+                "content_bottom": bottom,
+                "ticker_band": band_h,
+                "character_bottom": char_rect.bottom,
+                "character_centerx": char_rect.centerx,
+                "character_width": char_rect.width,
+                "character_height": char_rect.height,
+                "transit_row_count": len(transit_rows),
+                "weather_temp_px": weather_prep["font_temp"].get_height(),
+                "weather_desc_px": weather_prep["font_desc"].get_height(),
             }
         )
 
