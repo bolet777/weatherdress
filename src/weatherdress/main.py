@@ -10,6 +10,7 @@ from . import calendar_feed
 from . import debug_preview
 from . import display
 from . import i18n
+from . import ticker as ticker_module
 from . import identity_config
 from . import outfit
 from . import transit as transit_module
@@ -104,6 +105,11 @@ def main():
     screen = _open_display(config)
     pygame.display.set_caption(i18n.t(config, "window_title"))
     _set_window_icon()
+    band_px = ticker_module.band_height(config)
+    if band_px:
+        print(f"[ticker] Bandeau actif, {band_px} px.")
+    else:
+        print("[ticker] Bandeau coupé.")
 
     rotate_identity = identity_config.identity_on_each_refresh(config)
     chars_dir = os.path.join(IMAGES_DIR, "characters")

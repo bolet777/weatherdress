@@ -239,7 +239,7 @@ def test_fitted_cards_keep_bus_and_metro_above_the_black_band(monkeypatch):
     assert metrics["panel"].bottom <= metrics["content_bottom"]
     assert metrics["character_bottom"] <= metrics["content_bottom"]
     assert metrics["weather_bottom"] <= metrics["content_bottom"]
-    assert screen.get_at((400, 470))[:3] == (0, 0, 0)
+    assert screen.get_at((400, 470))[:3] == ticker.BAND_BG
 
 
 def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
@@ -251,8 +251,8 @@ def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
     )
     assert early_metrics["transit_row_count"] == 2
     assert pygame.image.tostring(early, "RGB") == pygame.image.tostring(later, "RGB")
-    assert early.get_at((0, 479))[:3] == (0, 0, 0)
-    assert early.get_at((799, 450))[:3] == (0, 0, 0)
+    assert early.get_at((0, 479))[:3] == ticker.BAND_BG
+    assert early.get_at((799, 450))[:3] == ticker.BAND_BG
 
 
 def test_only_the_band_moves_between_two_instants(monkeypatch):

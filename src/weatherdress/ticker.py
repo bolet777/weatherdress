@@ -1,7 +1,7 @@
 """Bandeau bas expérimental.
 
 Désactivé tant que ``ticker.enabled`` n'est pas vrai. Sans texte, la bande
-reste noire et vide. Le flux d'actualités viendra ensuite.
+reste rouge et vide. Le flux d'actualités viendra ensuite.
 """
 
 import pygame
@@ -13,7 +13,7 @@ SAMPLE_TEXT = (
 DEFAULT_HEIGHT = 32
 DEFAULT_SPEED = 48
 LOOP_GAP = 64
-BAND_BG = (0, 0, 0)
+BAND_BG = (255, 0, 0)
 BAND_FG = (248, 248, 248)
 
 

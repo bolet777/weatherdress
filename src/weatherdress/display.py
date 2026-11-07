@@ -1467,4 +1467,5 @@ def render_status(screen, config, lines):
         rect = surf.get_rect(center=(screen_w // 2, y))
         screen.blit(surf, rect)
         y += 32
+    ticker.paint(screen, config, 0.0)
     pygame.display.flip()
