@@ -178,6 +178,72 @@ def test_scene_stamp_ignores_the_ticker_clock():
     assert scene_stamp(**common, now=1_000) != scene_stamp(**changed, now=1_000)
 
 
+def test_shown_surface_keeps_a_ready_view():
+    from weatherdress.main import shown_surface
+
+    bus = pygame.Surface((8, 8))
+    agenda = pygame.Surface((8, 8))
+    cache = {(0, 0): bus, (0, 1): agenda}
+    assert shown_surface(cache, (0, 0), (8, 8)) is bus
+    assert shown_surface(cache, (1, 0), (8, 8)) is bus
+    assert shown_surface({}, (0, 0), (8, 8)) is None
+    assert shown_surface(cache, (0, 0), (4, 4)) is None
+
+
+def test_scene_cache_builder_returns_without_waiting():
+    import time
+
+    from weatherdress.main import SceneCacheBuilder
+
+    builder = SceneCacheBuilder()
+    try:
+        started = time.perf_counter()
+
+        def slow():
+            time.sleep(0.2)
+            return {(0, 0): "bus"}
+
+        builder.request("horaires", slow)
+        assert builder.poll() is None
+        assert time.perf_counter() - started < 0.15
+        ready = None
+        deadline = time.perf_counter() + 1
+        while time.perf_counter() < deadline:
+            ready = builder.poll()
+            if ready is not None:
+                break
+            time.sleep(0.01)
+        assert ready == ("horaires", {(0, 0): "bus"})
+    finally:
+        builder.close()
+
+
+def test_agenda_and_transit_share_one_catalog():
+    from weatherdress.main import current_view, view_catalog
+
+    moment = datetime.now().astimezone()
+    start = moment + timedelta(hours=2)
+    events = (CalendarOccurrence(start, start + timedelta(hours=1), "Cours", False),)
+    config = {
+        "transit": {
+            "transit_alternate_seconds": 5,
+            "gtfs_url": "x",
+            "metro_station": "O",
+            "metro_route_id": "1",
+        },
+        "calendar": {"enabled": True, "rotate_seconds": 15},
+    }
+    transit = {"bus": {"1": {"minutes": [4]}}, "metro": {"A": [3]}}
+    catalog = view_catalog(config, transit, events)
+    assert (0, 0) in catalog
+    assert (0, 1) in catalog
+    leaving = current_view(config, transit, events, 1_000)
+    coming_back = current_view(config, transit, events, 1_015)
+    assert leaving in catalog
+    assert coming_back in catalog
+    assert leaving[1] != coming_back[1]
+
+
 def test_transit_alternate_reuses_two_cached_views():
     from weatherdress.main import current_view, view_catalog
 

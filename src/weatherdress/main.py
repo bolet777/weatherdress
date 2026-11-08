@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 from datetime import datetime
 
 import pygame
@@ -180,6 +181,69 @@ def current_view(config, transit, events, now):
     return (t_phase, c_phase)
 
 
+def shown_surface(cache, view, size):
+    """Vue demandée si elle est prête et à la bonne taille, sinon une autre déjà dessinée."""
+    if not cache:
+        return None
+    surface = cache.get(view)
+    if surface is not None and surface.get_size() == size:
+        return surface
+    for candidate in cache.values():
+        if candidate.get_size() == size:
+            return candidate
+    return None
+
+
+class SceneCacheBuilder:
+    """Dessine les vues pendant que le bandeau continue. L'écran n'attend pas."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._pending = None
+        self._ready = None
+        self._wake = threading.Event()
+        self._stop = False
+        self._thread = threading.Thread(target=self._loop, name="scene-cache", daemon=True)
+        self._thread.start()
+
+    def request(self, stamp, build):
+        with self._lock:
+            self._pending = (stamp, build)
+        self._wake.set()
+
+    def poll(self):
+        with self._lock:
+            ready = self._ready
+            self._ready = None
+            return ready
+
+    def close(self):
+        self._stop = True
+        self._wake.set()
+        self._thread.join(timeout=1)
+
+    def _loop(self):
+        while not self._stop:
+            with self._lock:
+                item = self._pending
+                self._pending = None
+            if item is None:
+                self._wake.wait(0.05)
+                self._wake.clear()
+                continue
+            stamp, build = item
+            try:
+                cache = build()
+            except Exception:
+                traceback.print_exc()
+                continue
+            if self._stop:
+                return
+            with self._lock:
+                if self._pending is None:
+                    self._ready = (stamp, cache)
+
+
 def _build_scene_cache(size, config, *, outfit, weather, transit, events, error):
     """Une image par alternance transport / agenda. Le bandeau n'y est pas dessiné."""
     cache = {}
@@ -329,7 +393,14 @@ def main():
 
     clock = pygame.time.Clock()
     scene_cache = {}
-    scene_stamp_value = None
+    requested_stamp = None
+    builder = SceneCacheBuilder()
+    blank = None
+    spec = ticker_module.settings(config)
+    if spec and spec["text"]:
+        # La phrase est déjà en mémoire : le thread de dessin ne partage pas la police.
+        font_px = ticker_module.band_font_px(spec["height"])
+        ticker_module.cached_text_surface(spec["text"], font_px)
 
     while True:
         for event in pygame.event.get():
@@ -418,24 +489,52 @@ def main():
             debug_label=debug_label,
             size=screen.get_size(),
         )
-        if stamp != scene_stamp_value:
-            # Toutes les alternances sont dessinées d'un coup. Le passage
-            # de l'une à l'autre, quelques secondes plus tard, ne redessine rien.
-            scene_cache = _build_scene_cache(
-                screen.get_size(),
-                config,
-                outfit=current_outfit,
-                weather=current_weather_data,
-                transit=transit_for_render,
-                events=calendar_events,
-                error=last_weather_error,
-            )
-            scene_stamp_value = stamp
+        if stamp != requested_stamp:
+            # Le retour de l'agenda tombe en même temps que les nouveaux horaires.
+            # On les dessine à côté : l'écran garde la vue précédente et le texte avance.
+            size = screen.get_size()
+            outfit_now = current_outfit
+            weather_now = current_weather_data
+            transit_now = transit_for_render
+            events_now = calendar_events
+            error_now = last_weather_error
+
+            def build(
+                size=size,
+                outfit_now=outfit_now,
+                weather_now=weather_now,
+                transit_now=transit_now,
+                events_now=events_now,
+                error_now=error_now,
+            ):
+                return _build_scene_cache(
+                    size,
+                    config,
+                    outfit=outfit_now,
+                    weather=weather_now,
+                    transit=transit_now,
+                    events=events_now,
+                    error=error_now,
+                )
+
+            builder.request(stamp, build)
+            requested_stamp = stamp
+        ready = builder.poll()
+        if ready is not None:
+            ready_stamp, ready_cache = ready
+            if ready_stamp == requested_stamp:
+                scene_cache = ready_cache
         if current_outfit and current_weather_data:
             view = current_view(config, transit_for_render, calendar_events, now)
         else:
             view = None
-        _compose(screen, scene_cache[view], config, now)
+        surface = shown_surface(scene_cache, view, screen.get_size())
+        if surface is None:
+            if blank is None or blank.get_size() != screen.get_size():
+                blank = pygame.Surface(screen.get_size())
+                blank.fill(display.background_color(config))
+            surface = blank
+        _compose(screen, surface, config, now)
         clock.tick(ticker_module.TICKER_FPS if ticker_module.scrolling(config) else 1)
 
 
