@@ -1,7 +1,7 @@
 """Bandeau bas expérimental.
 
 Désactivé tant que ``ticker.enabled`` n'est pas vrai. Sans texte, la bande
-reste rouge et vide. Le flux d'actualités viendra ensuite.
+reste vide. Le flux d'actualités viendra ensuite.
 """
 
 import pygame
@@ -12,9 +12,10 @@ SAMPLE_TEXT = (
 )
 DEFAULT_HEIGHT = 32
 DEFAULT_SPEED = 48
-LOOP_GAP = 64
-BAND_BG = (255, 0, 0)
-BAND_FG = (248, 248, 248)
+LOOP_GAP = 28
+# Même bleu clair que le bandeau « Aujourd'hui » de l'agenda.
+BAND_BG = (214, 228, 246)
+BAND_FG = (0, 0, 0)
 
 
 def settings(config):
@@ -72,11 +73,33 @@ def scrolling(config):
     return bool(spec and spec["text"])
 
 
+_font_px_cache = {}
+
+
+def band_font_px(band_h):
+    """Plus grand corps gras qui tient dans la bande, marges comprises."""
+    band_h = int(band_h)
+    cached = _font_px_cache.get(band_h)
+    if cached is not None:
+        return cached
+    limit = max(8, band_h - 4)
+    px = max(8, band_h)
+    chosen = 8
+    while px > 8:
+        font = pygame.font.SysFont("sans-serif", px, bold=True)
+        if font.get_height() <= limit:
+            chosen = px
+            break
+        px -= 1
+    _font_px_cache[band_h] = chosen
+    return chosen
+
+
 def cached_text_surface(text, font_px):
     """La phrase n'est rendue qu'une fois. Seul le décalage change ensuite."""
-    key = (text, int(font_px), BAND_FG)
+    key = (text, int(font_px), BAND_FG, True)
     if _text_cache["key"] != key:
-        font = pygame.font.SysFont("sans-serif", int(font_px), bold=False)
+        font = pygame.font.SysFont("sans-serif", int(font_px), bold=True)
         _text_cache["surface"] = font.render(text, True, BAND_FG)
         _text_cache["key"] = key
     return _text_cache["surface"]
@@ -94,7 +117,7 @@ def paint(screen, config, elapsed_s):
     if not spec["text"]:
         return band
 
-    font_px = max(16, band_h - 12)
+    font_px = band_font_px(band_h)
     text_surf = cached_text_surface(spec["text"], font_px)
     period = text_surf.get_width() + LOOP_GAP
     offset = scroll_offset(elapsed_s, spec["speed"], period)

@@ -141,6 +141,13 @@ def _above_band(screen, band_h):
     return pygame.image.tostring(screen.subsurface((0, 0, screen.get_width(), height)), "RGB")
 
 
+def test_band_font_fills_the_strip():
+    px = ticker.band_font_px(32)
+    assert px >= 26
+    height = pygame.font.SysFont("sans-serif", px, bold=True).get_height()
+    assert height <= 28
+
+
 def test_cached_text_surface_is_reused():
     first = ticker.cached_text_surface("Bonjour", 20)
     assert ticker.cached_text_surface("Bonjour", 20) is first

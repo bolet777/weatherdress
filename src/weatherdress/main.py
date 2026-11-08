@@ -177,7 +177,6 @@ def main():
     transit_fetcher = None
     transit_state = {"metro_ready": False, "error": None}
     transit_data = {"bus": {}, "metro": {}}
-    last_transit_refresh = 0.0
     transit_refresh_secs = 30
     if transit_module.transit_config_enabled(config):
         transit_fetcher = transit_module.TransitFetcher(config)
@@ -194,6 +193,27 @@ def main():
                 print(f"[transit] Échec initialisation métro : {e}")
 
         threading.Thread(target=_init_metro_index, daemon=True).start()
+
+        transit_lock = threading.Lock()
+
+        def _poll_transit():
+            """Réseau hors de l'affichage : le texte ne s'arrête pas pendant la requête."""
+            while True:
+                bus = {}
+                metro = None
+                try:
+                    bus = transit_fetcher.get_bus_departures()
+                    if transit_state["metro_ready"]:
+                        metro = transit_fetcher.get_metro_departures()
+                except Exception as exc:
+                    print(f"[transit] Lecture impossible : {exc}")
+                with transit_lock:
+                    transit_data["bus"] = bus
+                    if metro is not None:
+                        transit_data["metro"] = metro
+                time.sleep(max(1, transit_refresh_secs))
+
+        threading.Thread(target=_poll_transit, daemon=True).start()
 
     # Le cache valide est chargé avant le thread réseau. La boucle ne lit que l'instantané.
     calendar_fetcher = calendar_feed.start_in_background(config)
@@ -213,14 +233,13 @@ def main():
 
         now = time.time()
         if transit_fetcher:
-            transit_due = (last_transit_refresh == 0.0) or (
-                now - last_transit_refresh >= transit_refresh_secs
-            )
-            if transit_due:
-                transit_data["bus"] = transit_fetcher.get_bus_departures()
-                if transit_state["metro_ready"]:
-                    transit_data["metro"] = transit_fetcher.get_metro_departures()
-                last_transit_refresh = now
+            with transit_lock:
+                transit_snapshot = {
+                    "bus": dict(transit_data.get("bus") or {}),
+                    "metro": dict(transit_data.get("metro") or {}),
+                }
+        else:
+            transit_snapshot = transit_data
 
         debug_label = None
         if debug_controller is not None:
@@ -268,7 +287,7 @@ def main():
         if transit_module.transit_config_enabled(config):
             transit_for_render = transit_module.merge_transit_display_data(
                 config,
-                transit_data,
+                transit_snapshot,
                 metro_ready=transit_state["metro_ready"],
             )
 

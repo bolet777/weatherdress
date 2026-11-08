@@ -93,11 +93,21 @@ def weather_background_alpha_255(config):
     return int(round(255 * a))
 
 
+_IMAGE_CACHE = {}
+
+
 def load_image(path):
-    """Charge une image avec canal alpha. Retourne None si introuvable."""
-    if not os.path.exists(path):
+    """Charge une image avec canal alpha. Retourne None si introuvable.
+
+    Le fichier n'est relu qu'une fois : redessiner la scène ne bloque plus le bandeau.
+    """
+    if not path or not os.path.exists(path):
         return None
+    cached = _IMAGE_CACHE.get(path)
+    if cached is not None:
+        return cached
     img = pygame.image.load(path).convert_alpha()
+    _IMAGE_CACHE[path] = img
     return img
 
 
