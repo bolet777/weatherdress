@@ -7,6 +7,7 @@ import time
 import pygame
 
 from . import calendar_feed
+from . import calendar_panel
 from . import debug_preview
 from . import display
 from . import i18n
@@ -83,6 +84,51 @@ def _set_window_icon(max_side=128):
         print(f"[app] Icône fenêtre non chargée ({path}) : {e}")
 
 
+def _freeze(value):
+    """Rend une valeur comparable d'une image à l'autre."""
+    if isinstance(value, dict):
+        return tuple(sorted((str(key), _freeze(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _phase_bucket(now, seconds):
+    try:
+        period = float(seconds or 0)
+    except (TypeError, ValueError):
+        period = 0
+    if period <= 0:
+        return 0
+    return int(now // period)
+
+
+def scene_stamp(config, *, weather, outfit, transit, events, now, notice, debug_label, size):
+    """Identité de la scène, sans le défilement. Change quand l'écran doit être redessiné."""
+    clock = time.localtime(now)
+    transit_block = config.get("transit") if isinstance(config.get("transit"), dict) else {}
+    return (
+        size,
+        (clock.tm_year, clock.tm_mon, clock.tm_mday, clock.tm_hour, clock.tm_min),
+        _phase_bucket(now, transit_block.get("transit_alternate_seconds", 5)),
+        _phase_bucket(now, calendar_panel.rotate_period(config)),
+        _freeze(weather),
+        _freeze(outfit),
+        _freeze(transit),
+        _freeze(events),
+        notice,
+        debug_label,
+    )
+
+
+def _compose(screen, scene, config, now):
+    """Colle la scène déjà dessinée, puis seulement le bandeau."""
+    screen.blit(scene, (0, 0))
+    if ticker_module.band_height(config):
+        ticker_module.paint(screen, config, now)
+    pygame.display.flip()
+
+
 def _open_display(config):
     """
     Plein écran : résolution native du moniteur (Pygame 0×0 + FULLSCREEN).
@@ -106,8 +152,10 @@ def main():
     pygame.display.set_caption(i18n.t(config, "window_title"))
     _set_window_icon()
     band_px = ticker_module.band_height(config)
-    if band_px:
-        print(f"[ticker] Bandeau actif, {band_px} px.")
+    if band_px and ticker_module.scrolling(config):
+        print(f"[ticker] Bandeau actif, {band_px} px, texte en défilement.")
+    elif band_px:
+        print(f"[ticker] Bandeau actif, {band_px} px, sans texte.")
     else:
         print("[ticker] Bandeau coupé.")
 
@@ -151,6 +199,8 @@ def main():
     calendar_fetcher = calendar_feed.start_in_background(config)
 
     clock = pygame.time.Clock()
+    scene_surface = None
+    scene_stamp_value = None
 
     while True:
         for event in pygame.event.get():
@@ -172,10 +222,12 @@ def main():
                     transit_data["metro"] = transit_fetcher.get_metro_departures()
                 last_transit_refresh = now
 
+        debug_label = None
         if debug_controller is not None:
             frame = debug_controller.next_frame(now, gender, number)
             current_weather_data = frame["weather"]
             current_outfit = frame["outfit"]
+            debug_label = frame["label"]
             last_weather_error = None
             pygame.display.set_caption(
                 f"{i18n.t(config, 'window_title')} — {frame['label']}"
@@ -220,35 +272,65 @@ def main():
                 metro_ready=transit_state["metro_ready"],
             )
 
+        calendar_events = calendar_feed.events_for_render(calendar_fetcher)
         if current_outfit and current_weather_data:
-            display.render(
-                screen,
-                current_outfit,
-                current_weather_data,
-                IMAGES_DIR,
-                config,
-                transit_data=transit_for_render,
-                transit_phase_t=now,
-                calendar_events=calendar_feed.events_for_render(calendar_fetcher),
-                calendar_phase_t=now,
-                ticker_phase_t=now,
-            )
+            notice = None
         elif last_weather_error:
-            display.render_status(
-                screen,
-                config,
-                [
-                    i18n.t(config, "error_weather_title"),
-                    i18n.t(config, "error_api_key_hint"),
-                    last_weather_error[:120],
-                ],
-            )
+            notice = ("error", last_weather_error[:120])
         else:
-            display.render_status(
-                screen, config, [i18n.t(config, "weather_loading")]
-            )
+            notice = ("loading",)
+        stamp = scene_stamp(
+            config,
+            weather=current_weather_data,
+            outfit=current_outfit,
+            transit=transit_for_render,
+            events=calendar_events,
+            now=now,
+            notice=notice,
+            debug_label=debug_label,
+            size=screen.get_size(),
+        )
+        if scene_surface is None or stamp != scene_stamp_value:
+            scene_surface = pygame.Surface(screen.get_size())
+            if current_outfit and current_weather_data:
+                display.render(
+                    scene_surface,
+                    current_outfit,
+                    current_weather_data,
+                    IMAGES_DIR,
+                    config,
+                    transit_data=transit_for_render,
+                    transit_phase_t=now,
+                    calendar_events=calendar_events,
+                    calendar_phase_t=now,
+                    shown_at=None,
+                    present=False,
+                    paint_ticker=False,
+                )
+            elif last_weather_error:
+                display.render_status(
+                    scene_surface,
+                    config,
+                    [
+                        i18n.t(config, "error_weather_title"),
+                        i18n.t(config, "error_api_key_hint"),
+                        last_weather_error[:120],
+                    ],
+                    present=False,
+                    paint_ticker=False,
+                )
+            else:
+                display.render_status(
+                    scene_surface,
+                    config,
+                    [i18n.t(config, "weather_loading")],
+                    present=False,
+                    paint_ticker=False,
+                )
+            scene_stamp_value = stamp
 
-        clock.tick(1)  # 1 fps suffit, c'est une appli statique
+        _compose(screen, scene_surface, config, now)
+        clock.tick(ticker_module.TICKER_FPS if ticker_module.scrolling(config) else 1)
 
 
 if __name__ == "__main__":

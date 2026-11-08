@@ -58,7 +58,9 @@ def test_default_file_covers_layout_and_app_keys():
         "ticker",
     ):
         assert key in data
-    assert data["ticker"] == {"enabled": True, "height_px": 32}
+    assert data["ticker"]["enabled"] is True
+    assert data["ticker"]["height_px"] == 32
+    assert "défile" in data["ticker"]["text"]
     assert data["calendar"] == {
         "enabled": False,
         "url": "",

@@ -472,6 +472,13 @@ FIELDS = {
             "La bande reste vide tant qu'aucun texte n'est fourni."
         ),
     },
+    "ticker.text": {
+        "label": "Texte du bandeau",
+        "help": (
+            "Phrase fixe qui défile de droite à gauche. "
+            "Un champ vide laisse la bande sans texte."
+        ),
+    },
 }
 
 _GEAR = (

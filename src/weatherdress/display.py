@@ -1177,6 +1177,8 @@ def render(
     ticker_phase_t=0.0,
     shown_at=None,
     frame_metrics=None,
+    present=True,
+    paint_ticker=True,
 ):
     screen_w, screen_h = screen.get_size()
     band_h = ticker.band_height(config)
@@ -1429,7 +1431,8 @@ def render(
         )
         panel = transit_panel
 
-    ticker.paint(screen, config, ticker_phase_t)
+    if paint_ticker:
+        ticker.paint(screen, config, ticker_phase_t)
 
     if frame_metrics is not None:
         frame_metrics.clear()
@@ -1453,10 +1456,11 @@ def render(
             }
         )
 
-    pygame.display.flip()
+    if present:
+        pygame.display.flip()
 
 
-def render_status(screen, config, lines):
+def render_status(screen, config, lines, *, present=True, paint_ticker=True):
     """Écran d’attente ou d’erreur (ex. clé API invalide) quand la météo n’est pas encore affichable."""
     screen_w, screen_h = screen.get_size()
     screen.fill(background_color(config))
@@ -1467,5 +1471,7 @@ def render_status(screen, config, lines):
         rect = surf.get_rect(center=(screen_w // 2, y))
         screen.blit(surf, rect)
         y += 32
-    ticker.paint(screen, config, 0.0)
-    pygame.display.flip()
+    if paint_ticker:
+        ticker.paint(screen, config, 0.0)
+    if present:
+        pygame.display.flip()

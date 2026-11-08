@@ -61,6 +61,27 @@ def scroll_offset(elapsed_s, speed_px_per_sec, period):
     return int(elapsed * speed) % period
 
 
+_text_cache = {"key": None, "surface": None}
+
+TICKER_FPS = 30
+
+
+def scrolling(config):
+    """Vrai quand une phrase doit défiler. La boucle passe alors à TICKER_FPS."""
+    spec = settings(config)
+    return bool(spec and spec["text"])
+
+
+def cached_text_surface(text, font_px):
+    """La phrase n'est rendue qu'une fois. Seul le décalage change ensuite."""
+    key = (text, int(font_px), BAND_FG)
+    if _text_cache["key"] != key:
+        font = pygame.font.SysFont("sans-serif", int(font_px), bold=False)
+        _text_cache["surface"] = font.render(text, True, BAND_FG)
+        _text_cache["key"] = key
+    return _text_cache["surface"]
+
+
 def paint(screen, config, elapsed_s):
     """Dessine le bandeau. Retourne son rectangle, ou None s'il est coupé."""
     spec = settings(config)
@@ -74,8 +95,7 @@ def paint(screen, config, elapsed_s):
         return band
 
     font_px = max(16, band_h - 12)
-    font = pygame.font.SysFont("sans-serif", font_px, bold=False)
-    text_surf = font.render(spec["text"], True, BAND_FG)
+    text_surf = cached_text_surface(spec["text"], font_px)
     period = text_surf.get_width() + LOOP_GAP
     offset = scroll_offset(elapsed_s, spec["speed"], period)
     y = band.y + (band.h - text_surf.get_height()) // 2

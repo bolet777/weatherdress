@@ -141,6 +141,36 @@ def _above_band(screen, band_h):
     return pygame.image.tostring(screen.subsurface((0, 0, screen.get_width(), height)), "RGB")
 
 
+def test_cached_text_surface_is_reused():
+    first = ticker.cached_text_surface("Bonjour", 20)
+    assert ticker.cached_text_surface("Bonjour", 20) is first
+    assert ticker.cached_text_surface("Bonsoir", 20) is not first
+
+
+def test_scene_stamp_ignores_the_ticker_clock():
+    from weatherdress.main import scene_stamp
+
+    config = {
+        "transit": {"transit_alternate_seconds": 5},
+        "calendar": {"rotate_seconds": 15},
+    }
+    common = dict(
+        config=config,
+        weather={"temp": 3},
+        outfit={"character": "normal_woman1"},
+        transit={"bus": {"1": {"minutes": [4, 12]}}},
+        events=(),
+        notice=None,
+        debug_label=None,
+        size=(800, 480),
+    )
+    assert scene_stamp(**common, now=1_000) == scene_stamp(**common, now=1_000.4)
+    assert scene_stamp(**common, now=1_000) != scene_stamp(**common, now=1_005)
+    changed = dict(common)
+    changed["weather"] = {"temp": 4}
+    assert scene_stamp(**common, now=1_000) != scene_stamp(**changed, now=1_000)
+
+
 def test_scroll_offset_advances_left_and_wraps():
     assert ticker.band_height({}) == 0
     assert ticker.band_height({"ticker": {"enabled": False}}) == 0

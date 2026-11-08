@@ -74,6 +74,7 @@
   },
   "ticker": {
     "enabled": true,
-    "height_px": 32
+    "height_px": 32,
+    "text": "●  Essai de bandeau  ●  Le texte défile de droite à gauche  ●  Météo, transport et agenda restent au-dessus  ●  "
   }
 }
