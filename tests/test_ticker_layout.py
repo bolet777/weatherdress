@@ -259,6 +259,13 @@ def test_transit_alternate_reuses_two_cached_views():
     assert current_view(config, transit, (), 1_000) == current_view(config, transit, (), 1_010)
 
 
+def test_new_phrase_keeps_the_pixel_already_reached():
+    state = {}
+    assert ticker.carry_offset(10, 40, 300, "ancienne", state) == 100
+    assert ticker.carry_offset(10, 40, 80, "nouvelle", state) == 100 % 80
+    assert ticker.carry_offset(11, 40, 80, "nouvelle", state) == (100 + 40) % 80
+
+
 def test_scroll_offset_advances_left_and_wraps():
     assert ticker.band_height({}) == 0
     assert ticker.band_height({"ticker": {"enabled": False}}) == 0

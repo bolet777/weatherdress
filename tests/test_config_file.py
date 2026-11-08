@@ -61,6 +61,8 @@ def test_default_file_covers_layout_and_app_keys():
     assert data["ticker"]["enabled"] is True
     assert data["ticker"]["height_px"] == 32
     assert "défile" in data["ticker"]["text"]
+    assert data["ticker"]["url"] == ""
+    assert data["ticker"]["refresh_minutes"] == 15
     assert data["calendar"] == {
         "enabled": False,
         "url": "",

@@ -1,7 +1,7 @@
-"""Bandeau bas expérimental.
+"""Bandeau bas.
 
-Désactivé tant que ``ticker.enabled`` n'est pas vrai. Sans texte, la bande
-reste vide. Le flux d'actualités viendra ensuite.
+Désactivé tant que ``ticker.enabled`` n'est pas vrai. Sans phrase, la bande
+reste vide. Une adresse de flux, lue ailleurs, peut remplacer la phrase fixe.
 """
 
 import pygame
@@ -37,7 +37,22 @@ def settings(config):
     text = block.get("text")
     if not isinstance(text, str):
         text = ""
-    return {"height": height, "speed": speed, "text": text.strip()}
+    url = block.get("url")
+    if not isinstance(url, str):
+        url = ""
+    try:
+        minutes = int(block.get("refresh_minutes", 15))
+    except (TypeError, ValueError):
+        minutes = 15
+    if minutes < 1:
+        minutes = 15
+    return {
+        "height": height,
+        "speed": speed,
+        "text": text.strip(),
+        "url": url.strip(),
+        "refresh_minutes": minutes,
+    }
 
 
 def band_height(config):
@@ -62,7 +77,41 @@ def scroll_offset(elapsed_s, speed_px_per_sec, period):
     return int(elapsed * speed) % period
 
 
+def carry_offset(elapsed_s, speed_px_per_sec, period, text, state):
+    """Comme `scroll_offset`, mais une nouvelle phrase reprend au pixel déjà atteint."""
+    period = int(period)
+    if period <= 0 or not text:
+        return 0
+    try:
+        elapsed = float(elapsed_s)
+        speed = float(speed_px_per_sec)
+    except (TypeError, ValueError):
+        return 0
+    if elapsed < 0 or speed <= 0:
+        return 0
+    pixels = int(elapsed * speed)
+    previous = state.get("text")
+    old_period = int(state.get("period") or 0)
+    bias = int(state.get("bias") or 0)
+    if previous != text or old_period <= 0:
+        if previous is not None and old_period > 0:
+            old_offset = (pixels + bias) % old_period
+            bias = (old_offset - (pixels % period)) % period
+        else:
+            bias = 0
+        state["text"] = text
+        state["period"] = period
+        state["bias"] = bias
+    elif old_period != period:
+        old_offset = (pixels + bias) % old_period
+        bias = (old_offset - (pixels % period)) % period
+        state["period"] = period
+        state["bias"] = bias
+    return (pixels + bias) % period
+
+
 _text_cache = {"key": None, "surface": None}
+_scroll_state = {"text": None, "period": 0, "bias": 0}
 
 TICKER_FPS = 30
 
@@ -105,8 +154,19 @@ def cached_text_surface(text, font_px):
     return _text_cache["surface"]
 
 
-def paint(screen, config, elapsed_s):
-    """Dessine le bandeau. Retourne son rectangle, ou None s'il est coupé."""
+def cached_phrase():
+    """Phrase déjà dessinée, ou une chaîne vide."""
+    key = _text_cache["key"]
+    if not key:
+        return ""
+    return key[0]
+
+
+def paint(screen, config, elapsed_s, text=None):
+    """Dessine le bandeau. Retourne son rectangle, ou None s'il est coupé.
+
+    `text` remplace la phrase fixe quand un flux a fourni la sienne.
+    """
     spec = settings(config)
     if spec is None:
         return None
@@ -114,13 +174,14 @@ def paint(screen, config, elapsed_s):
     band_h = spec["height"]
     band = pygame.Rect(0, max(0, screen_h - band_h), screen_w, min(band_h, screen_h))
     pygame.draw.rect(screen, BAND_BG, band)
-    if not spec["text"]:
+    phrase = spec["text"] if text is None else text
+    if not isinstance(phrase, str) or not phrase.strip():
         return band
 
     font_px = band_font_px(band_h)
-    text_surf = cached_text_surface(spec["text"], font_px)
+    text_surf = cached_text_surface(phrase, font_px)
     period = text_surf.get_width() + LOOP_GAP
-    offset = scroll_offset(elapsed_s, spec["speed"], period)
+    offset = carry_offset(elapsed_s, spec["speed"], period, phrase, _scroll_state)
     y = band.y + (band.h - text_surf.get_height()) // 2
     previous = screen.get_clip()
     screen.set_clip(band)

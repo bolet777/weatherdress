@@ -476,7 +476,21 @@ FIELDS = {
         "label": "Texte du bandeau",
         "help": (
             "Phrase fixe qui défile de droite à gauche. "
-            "Un champ vide laisse la bande sans texte."
+            "Elle reste affichée tant que le flux n'a rien fourni, ou si l'adresse est vide."
+        ),
+    },
+    "ticker.url": {
+        "label": "Adresse du flux",
+        "help": (
+            "Adresse http ou https d'un flux RSS ou Atom. "
+            "Un champ vide laisse défiler la phrase fixe."
+        ),
+    },
+    "ticker.refresh_minutes": {
+        "label": "Fréquence du flux",
+        "help": (
+            "Minutes entre deux lectures du flux. "
+            "En cas d'échec, la dernière phrase reste affichée."
         ),
     },
 }

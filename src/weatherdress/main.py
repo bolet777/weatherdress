@@ -15,6 +15,7 @@ from . import debug_preview
 from . import display
 from . import i18n
 from . import ticker as ticker_module
+from . import ticker_feed
 from . import identity_config
 from . import outfit
 from . import transit as transit_module
@@ -199,6 +200,7 @@ class SceneCacheBuilder:
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._draw = threading.Lock()
         self._pending = None
         self._ready = None
         self._wake = threading.Event()
@@ -222,6 +224,13 @@ class SceneCacheBuilder:
         self._wake.set()
         self._thread.join(timeout=1)
 
+    def try_reserve(self):
+        """Vrai si l'écran peut dessiner une phrase sans croiser le thread des vues."""
+        return self._draw.acquire(blocking=False)
+
+    def release(self):
+        self._draw.release()
+
     def _loop(self):
         while not self._stop:
             with self._lock:
@@ -233,7 +242,8 @@ class SceneCacheBuilder:
                 continue
             stamp, build = item
             try:
-                cache = build()
+                with self._draw:
+                    cache = build()
             except Exception:
                 traceback.print_exc()
                 continue
@@ -294,11 +304,11 @@ def _build_scene_cache(size, config, *, outfit, weather, transit, events, error)
     return cache
 
 
-def _compose(screen, scene, config, now):
+def _compose(screen, scene, config, now, phrase=None):
     """Colle la scène déjà dessinée, puis seulement le bandeau."""
     screen.blit(scene, (0, 0))
     if ticker_module.band_height(config):
-        ticker_module.paint(screen, config, now)
+        ticker_module.paint(screen, config, now, text=phrase)
     pygame.display.flip()
 
 
@@ -325,7 +335,10 @@ def main():
     pygame.display.set_caption(i18n.t(config, "window_title"))
     _set_window_icon()
     band_px = ticker_module.band_height(config)
-    if band_px and ticker_module.scrolling(config):
+    ticker_spec = ticker_module.settings(config)
+    if band_px and ticker_spec and ticker_spec["url"]:
+        print(f"[ticker] Bandeau actif, {band_px} px, flux en lecture.")
+    elif band_px and ticker_module.scrolling(config):
         print(f"[ticker] Bandeau actif, {band_px} px, texte en défilement.")
     elif band_px:
         print(f"[ticker] Bandeau actif, {band_px} px, sans texte.")
@@ -394,13 +407,15 @@ def main():
     clock = pygame.time.Clock()
     scene_cache = {}
     requested_stamp = None
-    builder = SceneCacheBuilder()
     blank = None
-    spec = ticker_module.settings(config)
-    if spec and spec["text"]:
-        # La phrase est déjà en mémoire : le thread de dessin ne partage pas la police.
-        font_px = ticker_module.band_font_px(spec["height"])
-        ticker_module.cached_text_surface(spec["text"], font_px)
+    ticker_px = 0
+    if ticker_spec:
+        # La phrase fixe est déjà en mémoire avant le thread qui dessine les vues.
+        ticker_px = ticker_module.band_font_px(ticker_spec["height"])
+        if ticker_spec["text"]:
+            ticker_module.cached_text_surface(ticker_spec["text"], ticker_px)
+    builder = SceneCacheBuilder()
+    ticker_fetcher = ticker_feed.start_in_background(config)
 
     while True:
         for event in pygame.event.get():
@@ -534,8 +549,19 @@ def main():
                 blank = pygame.Surface(screen.get_size())
                 blank.fill(display.background_color(config))
             surface = blank
-        _compose(screen, surface, config, now)
-        clock.tick(ticker_module.TICKER_FPS if ticker_module.scrolling(config) else 1)
+        phrase = ticker_feed.phrase_for_render(ticker_fetcher, config)
+        if ticker_spec and phrase and phrase != ticker_module.cached_phrase():
+            if builder.try_reserve():
+                try:
+                    ticker_module.cached_text_surface(phrase, ticker_px)
+                finally:
+                    builder.release()
+            else:
+                cached = ticker_module.cached_phrase()
+                if cached:
+                    phrase = cached
+        _compose(screen, surface, config, now, phrase)
+        clock.tick(ticker_module.TICKER_FPS if phrase else 1)
 
 
 if __name__ == "__main__":
