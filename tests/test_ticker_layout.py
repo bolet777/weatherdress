@@ -172,10 +172,25 @@ def test_scene_stamp_ignores_the_ticker_clock():
         size=(800, 480),
     )
     assert scene_stamp(**common, now=1_000) == scene_stamp(**common, now=1_000.4)
-    assert scene_stamp(**common, now=1_000) != scene_stamp(**common, now=1_005)
+    assert scene_stamp(**common, now=1_000) == scene_stamp(**common, now=1_005)
     changed = dict(common)
     changed["weather"] = {"temp": 4}
     assert scene_stamp(**common, now=1_000) != scene_stamp(**changed, now=1_000)
+
+
+def test_transit_alternate_reuses_two_cached_views():
+    from weatherdress.main import current_view, view_catalog
+
+    config = {"transit": {"transit_alternate_seconds": 5, "gtfs_url": "x", "metro_station": "O", "metro_route_id": "1"}}
+    transit = {
+        "bus": {"1": {"minutes": [4]}, "2": {"minutes": [8]}},
+        "metro": {"A": [3], "B": [5]},
+    }
+    catalog = view_catalog(config, transit, ())
+    assert catalog == ((0, 0), (1, 0))
+    assert current_view(config, transit, (), 1_000) in catalog
+    assert current_view(config, transit, (), 1_000) != current_view(config, transit, (), 1_005)
+    assert current_view(config, transit, (), 1_000) == current_view(config, transit, (), 1_010)
 
 
 def test_scroll_offset_advances_left_and_wraps():

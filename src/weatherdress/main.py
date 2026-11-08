@@ -1,8 +1,10 @@
 import ctypes
+import math
 import os
 import sys
 import threading
 import time
+from datetime import datetime
 
 import pygame
 
@@ -103,15 +105,43 @@ def _phase_bucket(now, seconds):
     return int(now // period)
 
 
+def _transit_period(config):
+    block = config.get("transit") if isinstance(config.get("transit"), dict) else {}
+    try:
+        period = float(block.get("transit_alternate_seconds", 5) or 0)
+    except (TypeError, ValueError):
+        period = 5.0
+    return period if period > 0 else 0.0
+
+
+def _stop_counts(transit):
+    data = transit or {}
+    bus_n = max(1, len(data.get("bus") or {}))
+    metro_n = max(1, len(data.get("metro") or {}))
+    return bus_n, metro_n
+
+
+def _calendar_rotates(config, events):
+    """Vrai quand l'agenda et le transport échangent vraiment leur place."""
+    if not events or not transit_module.transit_config_enabled(config):
+        return False
+    block = config.get("calendar") if isinstance(config.get("calendar"), dict) else None
+    if not isinstance(block, dict) or block.get("enabled") is not True:
+        return False
+    if calendar_panel.rotate_period(config) <= 0:
+        return False
+    return calendar_panel.should_show_agenda(events, datetime.now().astimezone())
+
+
 def scene_stamp(config, *, weather, outfit, transit, events, now, notice, debug_label, size):
-    """Identité de la scène, sans le défilement. Change quand l'écran doit être redessiné."""
+    """Données de la scène, sans le défilement ni l'alternance des cartes.
+
+    L'alternance toutes les quelques secondes réutilise une vue déjà dessinée.
+    """
     clock = time.localtime(now)
-    transit_block = config.get("transit") if isinstance(config.get("transit"), dict) else {}
     return (
         size,
         (clock.tm_year, clock.tm_mon, clock.tm_mday, clock.tm_hour, clock.tm_min),
-        _phase_bucket(now, transit_block.get("transit_alternate_seconds", 5)),
-        _phase_bucket(now, calendar_panel.rotate_period(config)),
         _freeze(weather),
         _freeze(outfit),
         _freeze(transit),
@@ -119,6 +149,85 @@ def scene_stamp(config, *, weather, outfit, transit, events, now, notice, debug_
         notice,
         debug_label,
     )
+
+
+def view_catalog(config, transit, events):
+    """Couples (phase transport, phase agenda) réellement distincts."""
+    bus_n, metro_n = _stop_counts(transit)
+    if _transit_period(config) <= 0:
+        transit_phases = (0,)
+    else:
+        transit_phases = tuple(range(math.lcm(bus_n, metro_n)))
+    if _calendar_rotates(config, events):
+        calendar_phases = (0, 1)
+    else:
+        calendar_phases = (0,)
+    return tuple((t_phase, c_phase) for t_phase in transit_phases for c_phase in calendar_phases)
+
+
+def current_view(config, transit, events, now):
+    """Vue affichée à cet instant. Elle revient sur une vue déjà cataloguée."""
+    bus_n, metro_n = _stop_counts(transit)
+    t_period = _transit_period(config)
+    if t_period <= 0:
+        t_phase = 0
+    else:
+        t_phase = _phase_bucket(now, t_period) % math.lcm(bus_n, metro_n)
+    if _calendar_rotates(config, events):
+        c_phase = _phase_bucket(now, calendar_panel.rotate_period(config)) % 2
+    else:
+        c_phase = 0
+    return (t_phase, c_phase)
+
+
+def _build_scene_cache(size, config, *, outfit, weather, transit, events, error):
+    """Une image par alternance transport / agenda. Le bandeau n'y est pas dessiné."""
+    cache = {}
+    if not (outfit and weather):
+        surface = pygame.Surface(size)
+        if error:
+            display.render_status(
+                surface,
+                config,
+                [
+                    i18n.t(config, "error_weather_title"),
+                    i18n.t(config, "error_api_key_hint"),
+                    error[:120],
+                ],
+                present=False,
+                paint_ticker=False,
+            )
+        else:
+            display.render_status(
+                surface,
+                config,
+                [i18n.t(config, "weather_loading")],
+                present=False,
+                paint_ticker=False,
+            )
+        cache[None] = surface
+        return cache
+
+    t_period = _transit_period(config)
+    c_period = calendar_panel.rotate_period(config)
+    for t_phase, c_phase in view_catalog(config, transit, events):
+        surface = pygame.Surface(size)
+        display.render(
+            surface,
+            outfit,
+            weather,
+            IMAGES_DIR,
+            config,
+            transit_data=transit,
+            transit_phase_t=(t_phase * t_period) if t_period else 0,
+            calendar_events=events,
+            calendar_phase_t=(c_phase * c_period) if c_period else 0,
+            shown_at=None,
+            present=False,
+            paint_ticker=False,
+        )
+        cache[(t_phase, c_phase)] = surface
+    return cache
 
 
 def _compose(screen, scene, config, now):
@@ -219,7 +328,7 @@ def main():
     calendar_fetcher = calendar_feed.start_in_background(config)
 
     clock = pygame.time.Clock()
-    scene_surface = None
+    scene_cache = {}
     scene_stamp_value = None
 
     while True:
@@ -309,46 +418,24 @@ def main():
             debug_label=debug_label,
             size=screen.get_size(),
         )
-        if scene_surface is None or stamp != scene_stamp_value:
-            scene_surface = pygame.Surface(screen.get_size())
-            if current_outfit and current_weather_data:
-                display.render(
-                    scene_surface,
-                    current_outfit,
-                    current_weather_data,
-                    IMAGES_DIR,
-                    config,
-                    transit_data=transit_for_render,
-                    transit_phase_t=now,
-                    calendar_events=calendar_events,
-                    calendar_phase_t=now,
-                    shown_at=None,
-                    present=False,
-                    paint_ticker=False,
-                )
-            elif last_weather_error:
-                display.render_status(
-                    scene_surface,
-                    config,
-                    [
-                        i18n.t(config, "error_weather_title"),
-                        i18n.t(config, "error_api_key_hint"),
-                        last_weather_error[:120],
-                    ],
-                    present=False,
-                    paint_ticker=False,
-                )
-            else:
-                display.render_status(
-                    scene_surface,
-                    config,
-                    [i18n.t(config, "weather_loading")],
-                    present=False,
-                    paint_ticker=False,
-                )
+        if stamp != scene_stamp_value:
+            # Toutes les alternances sont dessinées d'un coup. Le passage
+            # de l'une à l'autre, quelques secondes plus tard, ne redessine rien.
+            scene_cache = _build_scene_cache(
+                screen.get_size(),
+                config,
+                outfit=current_outfit,
+                weather=current_weather_data,
+                transit=transit_for_render,
+                events=calendar_events,
+                error=last_weather_error,
+            )
             scene_stamp_value = stamp
-
-        _compose(screen, scene_surface, config, now)
+        if current_outfit and current_weather_data:
+            view = current_view(config, transit_for_render, calendar_events, now)
+        else:
+            view = None
+        _compose(screen, scene_cache[view], config, now)
         clock.tick(ticker_module.TICKER_FPS if ticker_module.scrolling(config) else 1)
 
 
