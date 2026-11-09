@@ -370,8 +370,8 @@ FIELDS = {
     "transit.metro_line_color": {
         "label": "Couleur de la ligne",
         "help": (
-            "Couleur du bandeau gauche des cartes métro, [R, G, B]. "
-            "Le bandeau bus reste bleu foncé."
+            "Ancienne couleur du bandeau métro, [R, G, B]. "
+            "Bus et métro partagent le même badge bleu ; cette valeur n’est plus dessinée."
         ),
     },
     "transit.metro_directions": {
@@ -412,15 +412,15 @@ FIELDS = {
     "transit.card_times_font_px": {
         "label": "Taille des horaires",
         "help": (
-            "Taille des horaires (« 5min »), en pixels, bornée de 10 à 56. "
+            "Taille des horaires (« 5 min »), en pixels, bornée de 10 à 56. "
             "Plus grand = minutes plus lisibles et carte plus haute."
         ),
     },
     "transit.strip_mode_letter_font_px": {
         "label": "Lettre du bandeau",
         "help": (
-            "Taille de la lettre B ou M dans le bandeau, en pixels, bornée de 12 à 72. "
-            "Elle s’affiche seulement si l’icône bus ou métro est absente."
+            "Ancienne taille de la lettre B ou M, en pixels, bornée de 12 à 72. "
+            "Les cartes dessinent une icône blanche ; cette taille n’est plus utilisée."
         ),
     },
     "transit.card_height_px": {

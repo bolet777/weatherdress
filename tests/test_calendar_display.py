@@ -21,7 +21,7 @@ from weatherdress.calendar_feed import CalendarOccurrence  # noqa: E402
 
 TZ = ZoneInfo("America/Toronto")
 NOW = datetime(2026, 11, 4, 9, 30, tzinfo=TZ)
-WASH = calendar_panel.WASH
+WASH = calendar_panel.today_wash_on((255, 255, 255))
 
 TRANSIT = {
     "gtfs_url": "https://example.test/gtfs.zip",

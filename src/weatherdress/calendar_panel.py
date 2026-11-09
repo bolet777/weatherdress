@@ -1,4 +1,4 @@
-"""Dessin de l'agenda, repris tel quel de la maquette validée.
+"""Dessin de l'agenda dans le même chrome que les cartes de transport.
 
 Le rectangle vient de l'appelant : cartes bus/métro, ou l'espace sous la météo
 quand les transports sont absents. Aucun accès réseau ici.
@@ -21,15 +21,13 @@ _MAX_PX = 72
 # On ajoute une ligne seulement si la police reste proche du maximum lisible.
 _FONT_FLOOR = 0.88
 
-TODAY_TIME = (168, 82, 22)
-TODAY_TEXT = (28, 42, 84)
-TODAY_HEADER = (18, 52, 125)
-NEXT_TEXT = (70, 80, 102)
-NEXT_TIME = (56, 66, 92)
-WASH = (214, 228, 246)
-EVENT_WASH = (255, 244, 210)
-DIVIDER = (196, 204, 216)
-RULE = (176, 186, 198)
+TODAY_TIME = (242, 164, 62)
+TODAY_TEXT = (255, 255, 255)
+TODAY_HEADER = (255, 255, 255)
+NEXT_TEXT = (176, 186, 204)
+NEXT_TIME = (242, 164, 62)
+WASH_RGBA = (255, 255, 255, 28)
+EVENT_WASH_RGBA = (255, 186, 96, 36)
 
 _WEEKDAYS = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
 _MONTHS = (
@@ -341,11 +339,11 @@ def _pick_style(panel_h, today_events=(), content_w=None, upcoming_rows=()):
     return {"px": px}, fonts, 1
 
 
-def _strip_width(panel_w):
-    """Même largeur que le bandeau des cartes bus et métro."""
+def _strip_width(panel_w, panel_h):
+    """Même gouttière que le badge des cartes bus et métro."""
     from . import display
 
-    return min(display.TRANSIT_STRIP_WIDTH, max(1, int(panel_w) // 3))
+    return display.transit_content_gutter(panel_w, panel_h)
 
 
 def _piece(text, role, zone, x, y, font, color, day_offset=None):
@@ -361,7 +359,7 @@ def layout_agenda(events, now, panel):
         return AgendaLayout(False, panel, [])
 
     today = now.date()
-    strip_w = _strip_width(panel.w)
+    strip_w = _strip_width(panel.w, panel.h)
     content_left = panel.x + strip_w + PANEL_PAD
     content_right = panel.right - PANEL_PAD
     content_w = max(0, content_right - content_left)
@@ -446,7 +444,7 @@ def layout_agenda(events, now, panel):
                         content_right - more_w,
                         y,
                         today_title,
-                        TODAY_HEADER,
+                        NEXT_TEXT,
                         0,
                     )
                 )
@@ -505,7 +503,7 @@ def layout_agenda(events, now, panel):
         if more:
             more_x = content_right - more_w
             pieces.append(
-                _piece(more, "more", "upcoming", more_x, y, next_font, NEXT_TIME, offset)
+                _piece(more, "more", "upcoming", more_x, y, next_font, NEXT_TEXT, offset)
             )
 
     today_bottom = max(
@@ -539,6 +537,23 @@ def _day_bands(panel, strip_w, next_top, stride, row_h, divider_y, rows):
     return bands
 
 
+def today_wash_on(background):
+    """Couleur d’un pixel du lavis « aujourd’hui » une fois composé sur `background`."""
+    from . import display
+
+    sample = pygame.Surface((48, 48))
+    sample.fill(background)
+
+    def extra(big, scale):
+        display._glass_fill(
+            big, scale, pygame.Rect(0, 0, 48, 48), WASH_RGBA
+        )
+
+    display.paint_glass_card(sample, pygame.Rect(0, 0, 48, 48), extra)
+    pixel = sample.get_at((24, 24))
+    return (pixel.r, pixel.g, pixel.b)
+
+
 def paint_agenda(screen, laid):
     from . import display
 
@@ -546,62 +561,70 @@ def paint_agenda(screen, laid):
     if panel.height <= 0 or not laid.show:
         return
     radius = display.TRANSIT_CARD_BORDER_RADIUS
-    strip_w = laid.strip_w or _strip_width(panel.w)
-    display._transit_blit_card_shadow(screen, panel, radius)
-    clip = screen.get_clip()
-    screen.set_clip(panel)
-    pygame.draw.rect(screen, display.TRANSIT_CARD_BG, panel, border_radius=radius)
-    rail = pygame.Rect(panel.x, panel.y, strip_w, panel.h)
-    pygame.draw.rect(
-        screen,
-        display.TRANSIT_CARD_STRIP_BUS,
-        rail,
-        border_top_left_radius=radius,
-        border_bottom_left_radius=radius,
-    )
-    if laid.divider_y is not None:
-        wash = pygame.Rect(
-            panel.x + strip_w,
-            panel.y,
-            max(0, panel.w - strip_w),
-            max(0, laid.divider_y - panel.y),
-        )
-        if wash.height > 0 and wash.width > 0:
-            pygame.draw.rect(
-                screen,
-                WASH,
-                wash,
-                border_top_right_radius=radius,
+    strip_w = laid.strip_w or _strip_width(panel.w, panel.h)
+    badge = display.transit_badge_rect(panel)
+    badge_local = badge.move(-panel.x, -panel.y)
+
+    def extra(big, scale):
+        if laid.divider_y is not None:
+            wash = pygame.Rect(
+                strip_w,
+                0,
+                max(0, panel.w - strip_w),
+                max(0, laid.divider_y - panel.y),
             )
-        pygame.draw.line(
-            screen,
-            DIVIDER,
-            (panel.x + strip_w + 8, laid.divider_y),
-            (panel.right - 10, laid.divider_y),
-            1,
-        )
-    for index, (band, hot) in enumerate(laid.bands):
-        if hot and band.height > 0 and band.width > 0:
-            pygame.draw.rect(screen, EVENT_WASH, band)
-        if index:
-            pygame.draw.line(
-                screen,
-                DIVIDER,
-                (panel.x + strip_w + 8, band.top),
-                (panel.right - 10, band.top),
-                1,
+            if wash.width > 0 and wash.height > 0:
+                display._glass_fill(
+                    big,
+                    scale,
+                    wash,
+                    WASH_RGBA,
+                    border_top_right_radius=radius,
+                )
+            display._glass_line(
+                big,
+                scale,
+                display.TRANSIT_DIVIDER,
+                (strip_w + 8, laid.divider_y - panel.y),
+                (panel.w - 10, laid.divider_y - panel.y),
             )
-    if laid.rule_x is not None and laid.bands:
-        top = laid.bands[0][0].top
-        bottom = laid.bands[-1][0].bottom
-        pygame.draw.line(screen, RULE, (laid.rule_x, top + 6), (laid.rule_x, bottom - 6), 1)
-    _blit_calendar_icon(screen, rail, rail.center)
-    screen.set_clip(clip)
+        for index, (band, hot) in enumerate(laid.bands):
+            local = band.move(-panel.x, -panel.y)
+            if hot and local.width > 0 and local.height > 0:
+                corners = {}
+                if band.bottom >= panel.bottom - 3:
+                    corners["border_bottom_right_radius"] = radius
+                display._glass_fill(big, scale, local, EVENT_WASH_RGBA, **corners)
+            if index:
+                y = band.top - panel.y
+                display._glass_line(
+                    big,
+                    scale,
+                    display.TRANSIT_DIVIDER,
+                    (strip_w + 8, y),
+                    (panel.w - 10, y),
+                )
+        if laid.rule_x is not None and laid.bands:
+            x = laid.rule_x - panel.x
+            top = laid.bands[0][0].top - panel.y + 6
+            bottom = laid.bands[-1][0].bottom - panel.y - 6
+            display._glass_line(
+                big,
+                scale,
+                display.TRANSIT_DIVIDER,
+                (x, top),
+                (x, bottom),
+            )
+        display._draw_badge_divider(big, scale, badge_local)
+
+    display.paint_glass_card(screen, panel, extra)
+    display.blit_mode_badge(screen, badge, None)
+    _blit_calendar_icon(screen, badge, badge.center)
     _paint_pieces(screen, laid)
 
 
 def _blit_calendar_icon(screen, strip, center=None):
-    """Icône calendrier blanche, centrée dans le bandeau."""
+    """Icône calendrier blanche, centrée dans le badge."""
     side = max(18, min(36, strip.w - 16, strip.h - 12))
     if side < 12:
         return

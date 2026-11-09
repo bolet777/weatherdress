@@ -111,8 +111,8 @@ def test_upcoming_rows_align_on_a_rule_and_mark_the_busy_day():
     quiet = laid.bands[1][0]
     marked = screen.get_at((hot.right - 6, hot.top + 3))
     plain = screen.get_at((quiet.right - 6, quiet.top + 3))
-    assert marked.b < plain.b - 10
-    assert marked.r > 240
+    assert marked.r > plain.r + 4
+    assert marked.b < plain.b
 
 
 def test_short_all_day_title_keeps_journee():
@@ -249,7 +249,7 @@ def test_strip_is_the_transit_column_and_days_follow_today():
     ]
     tall = pygame.Rect(20, 40, 420, 320)
     laid = mockup.layout_agenda(events, NOW, tall)
-    assert laid.strip_w == min(display.TRANSIT_STRIP_WIDTH, tall.w // 3)
+    assert laid.strip_w == display.transit_content_gutter(tall.w, tall.h)
     assert all(piece.rect.left >= laid.panel.x + laid.strip_w for piece in laid.pieces)
     today_bottom = max(piece.rect.bottom for piece in laid.pieces if piece.zone == "today")
     upcoming = [piece for piece in laid.pieces if piece.role == "day"]
@@ -265,13 +265,13 @@ def test_strip_is_the_transit_column_and_days_follow_today():
     screen = pygame.Surface((500, 400))
     screen.fill((10, 20, 30))
     mockup.paint_agenda(screen, laid)
-    strip = pygame.Rect(laid.panel.x, laid.panel.y, laid.strip_w, laid.panel.h)
-    blue = screen.get_at((strip.x + 4, strip.y + 10))
-    assert abs(blue.r - display.TRANSIT_CARD_STRIP_BUS[0]) < 8
-    assert abs(blue.g - display.TRANSIT_CARD_STRIP_BUS[1]) < 8
-    assert abs(blue.b - display.TRANSIT_CARD_STRIP_BUS[2]) < 8
+    badge = display.transit_badge_rect(laid.panel)
+    blue = screen.get_at((badge.centerx, badge.y + 6))
+    assert abs(blue.r - display.TRANSIT_BADGE_BG[0]) < 8
+    assert abs(blue.g - display.TRANSIT_BADGE_BG[1]) < 8
+    assert abs(blue.b - display.TRANSIT_BADGE_BG[2]) < 8
     found_white = False
-    cx, cy = strip.center
+    cx, cy = badge.center
     for y in range(cy - 20, cy + 20):
         for x in range(cx - 16, cx + 16):
             pixel = screen.get_at((x, y))

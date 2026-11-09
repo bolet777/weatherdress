@@ -27,20 +27,27 @@ CIRCLE_TOP_INSET = 14  # espace entre le bord haut de l’écran et le sommet du
 TRANSIT_AFTER_WEATHER_GAP = 16
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
-TRANSIT_STRIP_WIDTH = 58
-TRANSIT_CARD_BORDER_RADIUS = 13
+TRANSIT_CARD_BORDER_RADIUS = 20
 TRANSIT_CARD_TITLE_PX = 22
 TRANSIT_CARD_SUBTITLE_PX = 16
 TRANSIT_CARD_TIMES_PX = 24
-TRANSIT_STRIP_ICON_PAD = 4
 TRANSIT_STRIP_MODE_LETTER_PX = 42
-TRANSIT_CARD_BG = (252, 253, 255)
-TRANSIT_CARD_STRIP_BUS = (18, 52, 125)
-TRANSIT_CARD_SHADOW_RGBA = (18, 24, 38, 58)
-TRANSIT_CARD_SEP = (188, 194, 204)
-# Texte sur la carte (fond clair)
-TRANSIT_LABEL_ON_LIGHT = (34, 52, 102)
-TRANSIT_TIMES_ON_LIGHT = (168, 82, 22)
+TRANSIT_GLASS_AA = 3
+TRANSIT_BADGE_SIDE = 48
+TRANSIT_BADGE_INSET = 14
+TRANSIT_BADGE_GAP = 16
+TRANSIT_BADGE_RADIUS = 12
+TRANSIT_BADGE_BG = (47, 116, 242)
+# Ancien nom du bandeau : le badge bus et métro partage cette couleur.
+TRANSIT_CARD_STRIP_BUS = TRANSIT_BADGE_BG
+TRANSIT_CARD_GLASS = (36, 52, 82, 220)
+TRANSIT_CARD_BORDER = (214, 224, 242, 120)
+TRANSIT_DIVIDER = (214, 224, 242, 150)
+TRANSIT_TITLE = (255, 255, 255)
+TRANSIT_SUBTITLE = (186, 196, 214)
+TRANSIT_TIMES = (242, 164, 62)
+TRANSIT_TIMES_PILL = (8, 16, 34, 168)
+TRANSIT_PILL_SEP = (230, 236, 245, 170)
 
 def _rgb_setting(config, key, default):
     """Lit une couleur RGB depuis config[key] : \"#rrggbb\" ou [R,G,B]. Sinon default."""
@@ -877,73 +884,241 @@ def transit_card_layout(config):
     }
 
 
-def _transit_blit_card_shadow(screen, rect, br):
-    sh = pygame.Surface((rect.w, rect.h), pygame.SRCALPHA)
-    pygame.draw.rect(sh, TRANSIT_CARD_SHADOW_RGBA, sh.get_rect(), border_radius=br)
-    screen.blit(sh, (rect.x + 3, rect.y + 4))
+def transit_badge_metrics(host_w, host_h):
+    """Côté du badge et largeur de gouttière (badge + filet) avant le texte."""
+    room = int(host_h) - 2 * TRANSIT_BADGE_INSET
+    side = max(28, min(TRANSIT_BADGE_SIDE, room))
+    gutter = TRANSIT_BADGE_INSET + side + TRANSIT_BADGE_GAP
+    cap = max(1, int(host_w) // 3)
+    if gutter > cap:
+        side = max(16, cap - TRANSIT_BADGE_INSET - TRANSIT_BADGE_GAP)
+        gutter = cap
+    return side, gutter
 
 
-def _transit_strip_mode_letter(screen, strip_rect, letter, font_px):
-    """Repli : lettre centrée si les PNG d’icônes manquent."""
-    x, y, w, h = strip_rect
-    cx, cy = x + w // 2, y + h // 2
-    font = pygame.font.SysFont("sans-serif", font_px, bold=True)
-    surf = font.render(letter, True, (255, 255, 255))
-    screen.blit(surf, surf.get_rect(center=(cx, cy)))
+def transit_content_gutter(panel_w, panel_h):
+    """Décalage du texte, identique sur une carte transport et sur l’agenda."""
+    _side, gutter = transit_badge_metrics(panel_w, panel_h)
+    return gutter
 
 
-def _transit_blit_strip_icon(screen, strip_rect, icon_filename):
-    """
-    Icône centrée dans le bandeau, même taille que la cartouche (pas d’élargissement).
-    """
-    path = os.path.join(IMAGES_DIR, "icons", icon_filename)
-    img = load_image(path)
-    if not img:
-        return False
-    pad = TRANSIT_STRIP_ICON_PAD
-    mw = max(1, strip_rect.width - 2 * pad)
-    mh = max(1, strip_rect.height - 2 * pad)
-    scaled = fit_image(img, mw, mh)
-    screen.blit(scaled, scaled.get_rect(center=strip_rect.center))
-    return True
+def transit_badge_rect(host):
+    """Carré bleu centré verticalement dans la carte ou le panneau."""
+    side, _gutter = transit_badge_metrics(host.w, host.h)
+    return pygame.Rect(
+        host.x + TRANSIT_BADGE_INSET,
+        host.centery - side // 2,
+        side,
+        side,
+    )
 
 
-def _transit_strip_bus(screen, strip_rect, strip_letter_px):
-    if not _transit_blit_strip_icon(screen, strip_rect, "bus.png"):
-        _transit_strip_mode_letter(screen, strip_rect, "B", strip_letter_px)
+def _glass_local_rect(local, scale):
+    return pygame.Rect(
+        int(local.x * scale),
+        int(local.y * scale),
+        max(1, int(local.w * scale)),
+        max(1, int(local.h * scale)),
+    )
 
 
-def _transit_strip_metro(screen, strip_rect, strip_letter_px):
-    if not _transit_blit_strip_icon(screen, strip_rect, "subway.png"):
-        _transit_strip_mode_letter(screen, strip_rect, "M", strip_letter_px)
+def _composite(big, draw):
+    """Dessine sur un calque puis le fond, pour ne pas remplacer l’alpha du verre."""
+    layer = pygame.Surface(big.get_size(), pygame.SRCALPHA)
+    draw(layer)
+    big.blit(layer, (0, 0))
 
 
-def _transit_blit_times_row(
-    screen, font, minutes, times_color, sep_rgb, content_right, mid_y
-):
-    """Affiche 0–2 cellules « Nmin » avec séparateurs verticaux, alignées à droite."""
-    if not minutes:
-        dash = font.render("—", True, times_color)
-        screen.blit(dash, dash.get_rect(midright=(content_right, mid_y)))
+def _glass_fill(big, scale, local, color, **radius_kwargs):
+    scaled = {key: int(value * scale) for key, value in radius_kwargs.items()}
+    area = _glass_local_rect(local, scale)
+
+    def draw(layer):
+        pygame.draw.rect(layer, color, area, **scaled)
+
+    _composite(big, draw)
+
+
+def _glass_line(big, scale, color, start, end):
+    start_px = (int(start[0] * scale), int(start[1] * scale))
+    end_px = (int(end[0] * scale), int(end[1] * scale))
+    width = max(1, scale)
+
+    def draw(layer):
+        pygame.draw.line(layer, color, start_px, end_px, width)
+
+    _composite(big, draw)
+
+
+def paint_glass_card(screen, rect, draw_extra=None):
+    """Carte verre : fond sombre translucide, liseré clair, coins arrondis."""
+    rect = pygame.Rect(rect)
+    if rect.w < 2 or rect.h < 2:
         return
-    surfs = [font.render(f"{m}min", True, times_color) for m in minutes]
-    sep_half_h = 16
-    gap = 10
-    total_w = sum(s.get_width() for s in surfs) + gap * 2 * max(0, len(surfs) - 1)
-    x = content_right - total_w
-    for i, s in enumerate(surfs):
-        screen.blit(s, (x, mid_y - s.get_height() // 2))
-        x += s.get_width()
-        if i < len(surfs) - 1:
+    scale = TRANSIT_GLASS_AA
+    big = pygame.Surface((rect.w * scale, rect.h * scale), pygame.SRCALPHA)
+    radius = TRANSIT_CARD_BORDER_RADIUS * scale
+    pygame.draw.rect(big, TRANSIT_CARD_GLASS, big.get_rect(), border_radius=radius)
+    if draw_extra is not None:
+        draw_extra(big, scale)
+    stroke = max(1, scale)
+    border = pygame.Rect(
+        stroke // 2,
+        stroke // 2,
+        rect.w * scale - stroke,
+        rect.h * scale - stroke,
+    )
+
+    def draw_border(layer):
+        pygame.draw.rect(
+            layer,
+            TRANSIT_CARD_BORDER,
+            border,
+            width=stroke,
+            border_radius=max(1, radius - stroke // 2),
+        )
+
+    _composite(big, draw_border)
+    screen.blit(pygame.transform.smoothscale(big, (rect.w, rect.h)), rect.topleft)
+
+
+def _draw_badge_divider(big, scale, badge_local):
+    x = badge_local.right + TRANSIT_BADGE_GAP // 2
+    _glass_line(
+        big,
+        scale,
+        TRANSIT_DIVIDER,
+        (x, badge_local.top + 8),
+        (x, badge_local.bottom - 8),
+    )
+
+
+def _punch_round(surface, rect, radius):
+    hole = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+    pygame.draw.rect(hole, (255, 255, 255, 255), rect, border_radius=radius)
+    surface.blit(hole, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+
+
+def _draw_bus_glyph(target, rect):
+    """Bus de profil, blanc, fenêtres ajourées."""
+    white = (255, 255, 255, 255)
+    inset_x = max(2, rect.w // 14)
+    body = pygame.Rect(
+        rect.left + inset_x,
+        rect.top + int(rect.h * 0.18),
+        rect.w - 2 * inset_x,
+        int(rect.h * 0.50),
+    )
+    pygame.draw.rect(target, white, body, border_radius=max(2, body.h // 3))
+    win_h = max(2, int(body.h * 0.40))
+    win_y = body.top + int(body.h * 0.20)
+    gap = max(2, body.w // 14)
+    win_w = max(2, (body.w - 4 * gap) // 3)
+    win_r = max(1, win_h // 4)
+    for index in range(3):
+        _punch_round(
+            target,
+            pygame.Rect(body.left + gap + index * (win_w + gap), win_y, win_w, win_h),
+            win_r,
+        )
+    wheel_r = max(2, rect.w // 12)
+    wheel_y = min(rect.bottom - wheel_r - 1, body.bottom + int(wheel_r * 0.55))
+    for frac in (0.28, 0.74):
+        pygame.draw.circle(
+            target, white, (body.left + int(body.w * frac), wheel_y), wheel_r
+        )
+
+
+def _draw_metro_glyph(target, rect):
+    """Métro de face, blanc, vitres ajourées."""
+    white = (255, 255, 255, 255)
+    inset_x = max(2, rect.w // 5)
+    body = pygame.Rect(
+        rect.left + inset_x,
+        rect.top + int(rect.h * 0.08),
+        rect.w - 2 * inset_x,
+        int(rect.h * 0.70),
+    )
+    pygame.draw.rect(target, white, body, border_radius=max(3, body.w // 3))
+    win_w = max(2, int(body.w * 0.30))
+    win_h = max(2, int(body.h * 0.34))
+    win_y = body.top + int(body.h * 0.24)
+    gap = max(2, int(body.w * 0.08))
+    win_r = max(1, win_w // 5)
+    left = body.centerx - gap // 2 - win_w
+    right = body.centerx + gap // 2
+    for win_x in (left, right):
+        _punch_round(target, pygame.Rect(win_x, win_y, win_w, win_h), win_r)
+    skirt_h = max(2, rect.h // 12)
+    skirt = pygame.Rect(
+        body.left + body.w // 5,
+        min(rect.bottom - skirt_h, body.bottom + max(1, skirt_h // 3)),
+        body.w - 2 * (body.w // 5),
+        skirt_h,
+    )
+    pygame.draw.rect(target, white, skirt, border_radius=max(1, skirt_h // 2))
+
+
+def blit_mode_badge(screen, rect, kind):
+    """Badge bleu et glyphe blanc (bus ou métro), bords lissés."""
+    rect = pygame.Rect(rect)
+    if rect.w < 8 or rect.h < 8:
+        return
+    scale = TRANSIT_GLASS_AA
+    big = pygame.Surface((rect.w * scale, rect.h * scale), pygame.SRCALPHA)
+    radius = min(TRANSIT_BADGE_RADIUS * scale, (min(rect.w, rect.h) * scale) // 2)
+    pygame.draw.rect(
+        big, (*TRANSIT_BADGE_BG, 255), big.get_rect(), border_radius=radius
+    )
+    pad = max(2, int(rect.w * scale * 0.18))
+    inner = pygame.Rect(pad, pad, rect.w * scale - 2 * pad, rect.h * scale - 2 * pad)
+    if kind == "metro":
+        _draw_metro_glyph(big, inner)
+    elif kind == "bus":
+        _draw_bus_glyph(big, inner)
+    screen.blit(pygame.transform.smoothscale(big, (rect.w, rect.h)), rect.topleft)
+
+
+def _transit_times_pill(times_px, minutes, times_color, max_h):
+    """Capsule des prochains passages : « N min », séparées par un filet."""
+    scale = TRANSIT_GLASS_AA
+    font = pygame.font.SysFont("sans-serif", max(1, times_px * scale), bold=True)
+    labels = [f"{minute} min" for minute in minutes] if minutes else ["—"]
+    surfs = [font.render(label, True, times_color) for label in labels]
+    gap = 11 * scale
+    pad_x = 14 * scale
+    pad_y = 7 * scale
+    text_w = sum(surf.get_width() for surf in surfs)
+    text_w += (gap * 2) * max(0, len(surfs) - 1)
+    text_h = max(surf.get_height() for surf in surfs)
+    pill_h = text_h + 2 * pad_y
+    cap = max(text_h, int(max_h) * scale)
+    if pill_h > cap:
+        pill_h = cap
+    pill_w = text_w + 2 * pad_x
+    big = pygame.Surface((max(1, pill_w), max(1, pill_h)), pygame.SRCALPHA)
+    pygame.draw.rect(
+        big, TRANSIT_TIMES_PILL, big.get_rect(), border_radius=pill_h // 2
+    )
+    x = pad_x
+    mid = pill_h // 2
+    sep_half = max(4 * scale, pill_h // 5)
+    for index, surf in enumerate(surfs):
+        big.blit(surf, (x, mid - surf.get_height() // 2))
+        x += surf.get_width()
+        if index < len(surfs) - 1:
             x += gap
             pygame.draw.line(
-                screen,
-                sep_rgb,
-                (x, mid_y - sep_half_h),
-                (x, mid_y + sep_half_h),
-                1,
+                big,
+                TRANSIT_PILL_SEP,
+                (x, mid - sep_half),
+                (x, mid + sep_half),
+                max(1, scale),
             )
             x += gap
+    out_w = max(1, round(pill_w / scale))
+    out_h = max(1, round(pill_h / scale))
+    return pygame.transform.smoothscale(big, (out_w, out_h))
 
 
 def _metro_headsign_display_label(headsign_text: str) -> str:
@@ -1072,7 +1247,7 @@ def draw_transit_panel(
 ):
     """
     transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
-    Cartes blanches (bandeau mode + texte + horaires), style tableau d’arrêt.
+    Cartes verre : badge bleu, titre blanc, horaires dans une capsule.
 
     Si transit.transit_alternate_seconds > 0 (défaut 5), un seul arrêt bus et une seule
     direction métro à la fois, alternés toutes les N secondes (même phase). Si la clé
@@ -1093,12 +1268,9 @@ def draw_transit_panel(
 
     card_layout = transit_card_layout(config)
     card_h = card_layout["card_height"]
-    strip_letter_px = card_layout["strip_letter_px"]
 
     right_x = screen_w - margin_right
     card_w = max(40, right_x - int(column_left))
-    br = TRANSIT_CARD_BORDER_RADIUS
-    strip_w = min(TRANSIT_STRIP_WIDTH, card_w // 3)
 
     title_font = pygame.font.SysFont(
         "sans-serif", card_layout["title_px"], bold=True
@@ -1106,51 +1278,42 @@ def draw_transit_panel(
     sub_font = pygame.font.SysFont(
         "sans-serif", card_layout["subtitle_px"], bold=False
     )
-    times_font = pygame.font.SysFont(
-        "sans-serif", card_layout["times_px"], bold=True
-    )
-    title_rgb = TRANSIT_LABEL_ON_LIGHT
-    sub_rgb = TRANSIT_LABEL_ON_LIGHT
-    times_rgb = TRANSIT_TIMES_ON_LIGHT
-
+    title_rgb = TRANSIT_TITLE
+    sub_rgb = TRANSIT_SUBTITLE
+    times_rgb = TRANSIT_TIMES
     pad_inner = 12
-    content_left_off = strip_w + pad_inner
 
-    for i, (mode, title, subtitle, minutes, strip_color) in enumerate(rows):
+    for i, (mode, title, subtitle, minutes, _strip_color) in enumerate(rows):
         card_y = int(start_y) + i * row_stride
         if card_y + card_h > _bottom_limit(screen_h, content_bottom):
             break
         card_rect = pygame.Rect(int(column_left), card_y, card_w, card_h)
-        _transit_blit_card_shadow(screen, card_rect, br)
-        pygame.draw.rect(screen, TRANSIT_CARD_BG, card_rect, border_radius=br)
+        badge = transit_badge_rect(card_rect)
+        badge_local = badge.move(-card_rect.x, -card_rect.y)
 
-        strip_rect = pygame.Rect(card_rect.x, card_rect.y, strip_w, card_rect.h)
-        pygame.draw.rect(
-            screen,
-            strip_color,
-            strip_rect,
-            border_top_left_radius=br,
-            border_top_right_radius=0,
-            border_bottom_left_radius=br,
-            border_bottom_right_radius=0,
-        )
-        if mode == "bus":
-            _transit_strip_bus(screen, strip_rect, strip_letter_px)
-        else:
-            _transit_strip_metro(screen, strip_rect, strip_letter_px)
+        def _extra(big, scale, badge_local=badge_local):
+            _draw_badge_divider(big, scale, badge_local)
 
-        text_left = card_rect.x + content_left_off
+        paint_glass_card(screen, card_rect, _extra)
+        blit_mode_badge(screen, badge, "metro" if mode == "metro" else "bus")
+
+        text_left = card_rect.x + transit_content_gutter(card_rect.w, card_rect.h)
         text_right = card_rect.right - pad_inner
         mid_y = card_rect.centery
+        pill = _transit_times_pill(
+            card_layout["times_px"], minutes, times_rgb, card_h - 16
+        )
+        pill_left = text_right - pill.get_width()
+        text_clip = pygame.Rect(
+            text_left,
+            card_rect.y,
+            max(1, pill_left - 10 - text_left),
+            card_rect.h,
+        )
+        previous_clip = screen.get_clip()
+        screen.set_clip(text_clip.clip(previous_clip))
 
-        if mode == "bus" and subtitle:
-            t_surf = title_font.render(title, True, title_rgb)
-            s_surf = sub_font.render(subtitle, True, sub_rgb)
-            block_h = t_surf.get_height() + 3 + s_surf.get_height()
-            ty = mid_y - block_h // 2
-            screen.blit(t_surf, (text_left, ty))
-            screen.blit(s_surf, (text_left, ty + t_surf.get_height() + 3))
-        elif mode == "metro" and subtitle and subtitle != title:
+        if subtitle and (mode == "bus" or subtitle != title):
             t_surf = title_font.render(title, True, title_rgb)
             s_surf = sub_font.render(subtitle, True, sub_rgb)
             block_h = t_surf.get_height() + 3 + s_surf.get_height()
@@ -1161,16 +1324,8 @@ def draw_transit_panel(
             t_surf = title_font.render(title, True, title_rgb)
             screen.blit(t_surf, (text_left, mid_y - t_surf.get_height() // 2))
 
-        times_area_right = text_right
-        _transit_blit_times_row(
-            screen,
-            times_font,
-            minutes,
-            times_rgb,
-            TRANSIT_CARD_SEP,
-            times_area_right,
-            mid_y,
-        )
+        screen.set_clip(previous_clip)
+        screen.blit(pill, (pill_left, mid_y - pill.get_height() // 2))
 
 
 def render(
