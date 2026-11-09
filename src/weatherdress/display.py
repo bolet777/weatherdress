@@ -993,102 +993,46 @@ def _draw_badge_divider(big, scale, badge_local):
     )
 
 
-def _punch_round(surface, rect, radius):
-    hole = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-    pygame.draw.rect(hole, (255, 255, 255, 255), rect, border_radius=radius)
-    surface.blit(hole, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+_MODE_ICON_FILES = {"bus": "bus.png", "metro": "subway.png"}
+_MODE_ICON_CACHE = {}
 
 
-def _punch_circle(surface, center, radius):
-    hole = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
-    pygame.draw.circle(hole, (255, 255, 255, 255), center, radius)
-    surface.blit(hole, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
+def _cropped_mode_icon(filename):
+    """Icône blanche rognée de sa marge transparente."""
+    cached = _MODE_ICON_CACHE.get(filename)
+    if cached is not None:
+        return cached
+    path = os.path.join(IMAGES_DIR, "icons", filename)
+    img = load_image(path)
+    if not img:
+        _MODE_ICON_CACHE[filename] = None
+        return None
+    mask = pygame.mask.from_surface(img, 24)
+    rects = mask.get_bounding_rects()
+    if not rects:
+        cropped = img
+    else:
+        bounds = rects[0].unionall(rects)
+        cropped = img.subsurface(bounds).copy()
+    _MODE_ICON_CACHE[filename] = cropped
+    return cropped
 
 
-def _draw_bus_glyph(target, rect):
-    """Bus emoji de face : aplat blanc, pare-brise et phares en creux."""
-    white = (255, 255, 255, 255)
-    mirror_w = max(2, rect.w // 11)
-    body = pygame.Rect(
-        rect.left + mirror_w,
-        rect.top + int(rect.h * 0.04),
-        rect.w - 2 * mirror_w,
-        int(rect.h * 0.92),
+def _blit_mode_png(target, inner, kind):
+    filename = _MODE_ICON_FILES.get(kind)
+    src = _cropped_mode_icon(filename) if filename else None
+    if src is None or inner.w < 2 or inner.h < 2:
+        return
+    sw, sh = src.get_size()
+    scale = min(inner.w / sw, inner.h / sh)
+    fitted = pygame.transform.smoothscale(
+        src, (max(1, int(sw * scale)), max(1, int(sh * scale)))
     )
-    roof = max(3, body.w // 3)
-    base = max(2, body.w // 6)
-    pygame.draw.rect(
-        target,
-        white,
-        body,
-        border_top_left_radius=roof,
-        border_top_right_radius=roof,
-        border_bottom_left_radius=base,
-        border_bottom_right_radius=base,
-    )
-    mirror_h = max(3, body.h // 8)
-    mirror_y = body.top + int(body.h * 0.30)
-    for origin in (rect.left, body.right - 2):
-        pygame.draw.rect(
-            target,
-            white,
-            pygame.Rect(origin, mirror_y, mirror_w + 2, mirror_h),
-            border_radius=mirror_h // 2,
-        )
-    windshield = pygame.Rect(
-        body.left + int(body.w * 0.14),
-        body.top + int(body.h * 0.16),
-        int(body.w * 0.72),
-        int(body.h * 0.32),
-    )
-    _punch_round(target, windshield, max(2, windshield.h // 3))
-    light_r = max(2, body.w // 12)
-    light_y = body.top + int(body.h * 0.70)
-    for frac in (0.30, 0.70):
-        _punch_circle(target, (body.left + int(body.w * frac), light_y), light_r)
-
-
-def _draw_metro_glyph(target, rect):
-    """Métro emoji de face : aplat blanc, vitres et phares en creux."""
-    white = (255, 255, 255, 255)
-    body = pygame.Rect(
-        rect.left + int(rect.w * 0.16),
-        rect.top + int(rect.h * 0.02),
-        int(rect.w * 0.68),
-        int(rect.h * 0.80),
-    )
-    nose = max(4, body.w // 3)
-    pygame.draw.rect(target, white, body, border_radius=nose)
-    sign = pygame.Rect(
-        body.left + int(body.w * 0.24),
-        body.top + int(body.h * 0.12),
-        int(body.w * 0.52),
-        max(2, int(body.h * 0.07)),
-    )
-    _punch_round(target, sign, max(1, sign.h // 2))
-    win_w = max(2, int(body.w * 0.30))
-    win_h = max(2, int(body.h * 0.30))
-    win_y = body.top + int(body.h * 0.26)
-    gap = max(2, int(body.w * 0.08))
-    win_r = max(2, win_w // 6)
-    for win_x in (body.centerx - gap // 2 - win_w, body.centerx + gap // 2):
-        _punch_round(target, pygame.Rect(win_x, win_y, win_w, win_h), win_r)
-    light_r = max(2, body.w // 13)
-    light_y = body.top + int(body.h * 0.72)
-    for frac in (0.30, 0.70):
-        _punch_circle(target, (body.left + int(body.w * frac), light_y), light_r)
-    rail_w = max(4, int(body.w * 0.46))
-    rail_h = max(2, int(rect.h * 0.07))
-    pygame.draw.rect(
-        target,
-        white,
-        pygame.Rect(body.centerx - rail_w // 2, body.bottom, rail_w, rail_h),
-        border_radius=max(1, rail_h // 2),
-    )
+    target.blit(fitted, fitted.get_rect(center=inner.center))
 
 
 def blit_mode_badge(screen, rect, kind):
-    """Badge bleu et glyphe blanc (bus ou métro), bords lissés."""
+    """Badge bleu et icône blanche (bus.png ou subway.png), bords lissés."""
     rect = pygame.Rect(rect)
     if rect.w < 8 or rect.h < 8:
         return
@@ -1098,15 +1042,9 @@ def blit_mode_badge(screen, rect, kind):
     pygame.draw.rect(
         big, (*TRANSIT_BADGE_BG, 255), big.get_rect(), border_radius=radius
     )
-    pad = max(2, int(rect.w * scale * 0.12))
+    pad = max(2, int(rect.w * scale * 0.14))
     inner = pygame.Rect(pad, pad, rect.w * scale - 2 * pad, rect.h * scale - 2 * pad)
-    if kind in ("metro", "bus"):
-        glyph = pygame.Surface(big.get_size(), pygame.SRCALPHA)
-        if kind == "metro":
-            _draw_metro_glyph(glyph, inner)
-        else:
-            _draw_bus_glyph(glyph, inner)
-        big.blit(glyph, (0, 0))
+    _blit_mode_png(big, inner, kind)
     screen.blit(pygame.transform.smoothscale(big, (rect.w, rect.h)), rect.topleft)
 
 
