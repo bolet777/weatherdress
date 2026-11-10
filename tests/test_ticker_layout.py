@@ -16,6 +16,7 @@ pygame.init()
 pygame.display.set_mode((800, 480))
 
 from weatherdress import display  # noqa: E402
+from weatherdress import fonts  # noqa: E402
 from weatherdress import ticker  # noqa: E402
 from weatherdress.calendar_feed import CalendarOccurrence  # noqa: E402
 from weatherdress.paths import IMAGES_DIR  # noqa: E402
@@ -143,9 +144,9 @@ def _above_band(screen, band_h):
 
 def test_band_font_fills_the_strip():
     px = ticker.band_font_px(32)
-    assert px >= 26
-    height = pygame.font.SysFont("sans-serif", px, bold=True).get_height()
+    height = fonts.load(px, "semibold").get_height()
     assert height <= 28
+    assert fonts.load(px + 1, "semibold").get_height() > 28
 
 
 def test_cached_text_surface_is_reused():

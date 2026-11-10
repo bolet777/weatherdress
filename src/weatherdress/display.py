@@ -10,6 +10,7 @@ from . import calendar_panel
 from . import character_assets
 from .badges import BADGE_AA_SCALE
 from . import future_accessories_column
+from . import fonts
 from . import layout_config
 from . import ticker
 from . import transit as transit_module
@@ -481,7 +482,7 @@ def _time_pill_metrics(screen_h, layout=None):
     pad_x = max(12, int(round(font_px * 0.39)))
     icon_r = max(10, int(round(font_px * 0.29)))
     gap = max(8, int(round(font_px * 0.28)))
-    probe = pygame.font.SysFont("sans-serif", font_px, bold=False)
+    probe = fonts.load(font_px, "semibold-tabular")
     text_h = probe.size("00:00")[1]
     pill_h = max(text_h + 2 * pad_y, 2 * pad_y + 2 * icon_r + 4)
     return {
@@ -530,7 +531,7 @@ def draw_time_pill(surface, screen_w, screen_h, layout=None):
     m = _time_pill_metrics(screen_h, layout)
     bg = m["bg"]
 
-    font_hi = pygame.font.SysFont("sans-serif", m["font_px"] * s, bold=False)
+    font_hi = fonts.load(m["font_px"] * s, "semibold-tabular")
     text_surf = font_hi.render(t_str, True, fg)
     tw, th = text_surf.get_size()
 
@@ -653,8 +654,8 @@ def _weather_block_layout(
         layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.065
     )
 
-    font_temp = pygame.font.SysFont("sans-serif", temp_size, bold=True)
-    font_desc = pygame.font.SysFont("sans-serif", desc_size, bold=False)
+    font_temp = fonts.load(temp_size, "light")
+    font_desc = fonts.load(desc_size, "regular")
 
     icon_path = weather_icons.get_weather_icon_path(
         IMAGES_DIR,
@@ -1051,7 +1052,7 @@ def blit_mode_badge(screen, rect, kind):
 def _transit_times_pill(times_px, minutes, times_color, max_h):
     """Capsule des prochains passages : « N min », séparées par un filet."""
     scale = TRANSIT_GLASS_AA
-    font = pygame.font.SysFont("sans-serif", max(1, times_px * scale), bold=True)
+    font = fonts.load(max(1, times_px * scale), "semibold-tabular")
     labels = [f"{minute} min" for minute in minutes] if minutes else ["—"]
     surfs = [font.render(label, True, times_color) for label in labels]
     gap = 11 * scale
@@ -1241,12 +1242,8 @@ def draw_transit_panel(
     right_x = screen_w - margin_right
     card_w = max(40, right_x - int(column_left))
 
-    title_font = pygame.font.SysFont(
-        "sans-serif", card_layout["title_px"], bold=True
-    )
-    sub_font = pygame.font.SysFont(
-        "sans-serif", card_layout["subtitle_px"], bold=False
-    )
+    title_font = fonts.load(card_layout["title_px"], "semibold")
+    sub_font = fonts.load(card_layout["subtitle_px"], "regular")
     title_rgb = TRANSIT_TITLE
     sub_rgb = TRANSIT_SUBTITLE
     times_rgb = TRANSIT_TIMES
@@ -1485,7 +1482,7 @@ def render(
     else:
         if not use_photo_background:
             pygame.draw.rect(screen, (200, 200, 200), char_rect, border_radius=12)
-        font = pygame.font.SysFont("sans-serif", 18)
+        font = fonts.load(18, "medium")
         if use_photo_background:
             blit_centered_text_pill(
                 screen,
@@ -1598,7 +1595,7 @@ def render_status(screen, config, lines, *, present=True, paint_ticker=True):
     """Écran d’attente ou d’erreur (ex. clé API invalide) quand la météo n’est pas encore affichable."""
     screen_w, screen_h = screen.get_size()
     screen.fill(background_color(config))
-    font = pygame.font.SysFont("sans-serif", 20)
+    font = fonts.load(20, "medium")
     y = max(40, screen_h // 2 - len(lines) * 16)
     for line in lines:
         surf = font.render(line, True, primary_text_color(config))

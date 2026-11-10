@@ -6,6 +6,8 @@ reste vide. Une adresse de flux, lue ailleurs, peut remplacer la phrase fixe.
 
 import pygame
 
+from . import fonts
+
 SAMPLE_TEXT = (
     "●  Essai de bandeau  ●  Le texte défile de droite à gauche  ●  "
     "Météo, transport et agenda restent au-dessus  ●  "
@@ -126,7 +128,7 @@ _font_px_cache = {}
 
 
 def band_font_px(band_h):
-    """Plus grand corps gras qui tient dans la bande, marges comprises."""
+    """Plus grand corps SemiBold qui tient dans la bande, marges comprises."""
     band_h = int(band_h)
     cached = _font_px_cache.get(band_h)
     if cached is not None:
@@ -135,7 +137,7 @@ def band_font_px(band_h):
     px = max(8, band_h)
     chosen = 8
     while px > 8:
-        font = pygame.font.SysFont("sans-serif", px, bold=True)
+        font = fonts.load(px, "semibold")
         if font.get_height() <= limit:
             chosen = px
             break
@@ -146,9 +148,9 @@ def band_font_px(band_h):
 
 def cached_text_surface(text, font_px):
     """La phrase n'est rendue qu'une fois. Seul le décalage change ensuite."""
-    key = (text, int(font_px), BAND_FG, True)
+    key = (text, int(font_px), BAND_FG, "semibold")
     if _text_cache["key"] != key:
-        font = pygame.font.SysFont("sans-serif", int(font_px), bold=True)
+        font = fonts.load(font_px, "semibold")
         _text_cache["surface"] = font.render(text, True, BAND_FG)
         _text_cache["key"] = key
     return _text_cache["surface"]

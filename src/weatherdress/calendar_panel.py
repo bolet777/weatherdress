@@ -10,6 +10,8 @@ from datetime import datetime, time as dtime, timedelta
 
 import pygame
 
+from . import fonts
+
 HORIZON_DAYS = 4
 ELLIPSIS = "…"
 PANEL_PAD = 12
@@ -222,18 +224,18 @@ def _all_day_label_fits(time_font, title_font, title, room, more=""):
     return need <= room
 
 
-def _font(px, bold):
-    return pygame.font.SysFont("sans-serif", int(px), bold=bold)
+def _font(px, role):
+    return fonts.load(px, role)
 
 
 def _make_fonts(px):
-    """Aujourd'hui et les trois jours partagent la même taille. L'heure du jour reste en gras."""
+    """Aujourd'hui et les trois jours partagent la même taille. Les heures sont tabulaires."""
     px = int(px)
     return (
-        _font(px, True),
-        _font(px, True),
-        _font(px, False),
-        _font(px, False),
+        _font(px, "semibold"),
+        _font(px, "semibold-tabular"),
+        _font(px, "regular"),
+        _font(px, "regular"),
     )
 
 
@@ -268,7 +270,7 @@ def _rows_fit(fonts, content_w, today_rows, upcoming_rows):
     if not upcoming_rows:
         return True
     day_w = max(next_font.size(day)[0] for day, _time, _title, _more in upcoming_rows)
-    time_w = max(next_font.size(label)[0] for _day, label, _title, _more in upcoming_rows)
+    time_w = max(today_time.size(label)[0] for _day, label, _title, _more in upcoming_rows)
     for _day, _label, title, more in upcoming_rows:
         width = day_w + TIME_GAP + time_w
         if title:
@@ -456,12 +458,12 @@ def layout_agenda(events, now, panel):
     shown_upcoming = []
     for day_label, label, title, more in upcoming_rows:
         if label == "Journée" and not _all_day_label_fits(
-            next_font, next_font, title, time_room, more
+            today_time, next_font, title, time_room, more
         ):
             label = ""
         shown_upcoming.append((day_label, label, title, more))
     time_col = max(
-        (next_font.size(label)[0] for _day, label, _title, _more in shown_upcoming if label),
+        (today_time.size(label)[0] for _day, label, _title, _more in shown_upcoming if label),
         default=0,
     )
 
@@ -488,7 +490,7 @@ def layout_agenda(events, now, panel):
             continue
         if label:
             pieces.append(
-                _piece(label, "time", "upcoming", time_x, y, next_font, NEXT_TIME, offset)
+                _piece(label, "time", "upcoming", time_x, y, today_time, NEXT_TIME, offset)
             )
             title_x = time_x + time_col + TIME_GAP
         else:
@@ -681,7 +683,7 @@ def _paint_pieces(screen, laid):
     for piece in laid.pieces:
         if piece.zone == "header":
             font = header_font
-        elif piece.zone == "today" and piece.role == "time":
+        elif piece.role == "time":
             font = today_time
         elif piece.zone == "today":
             font = today_title

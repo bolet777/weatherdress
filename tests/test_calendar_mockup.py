@@ -11,6 +11,8 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame  # noqa: E402
 import pytest  # noqa: E402
 
+from weatherdress import fonts  # noqa: E402
+
 pytest.importorskip("pygame")
 
 pygame.init()
@@ -207,9 +209,10 @@ def test_event_titles_are_not_bold_and_times_stay_orange():
     clock = next(piece for piece in laid.pieces if piece.zone == "today" and piece.role == "time")
     assert title.rect.width == title_font.size(title.text)[0]
     assert clock.rect.width == time_font.size(clock.text)[0]
-    assert not title_font.get_bold()
-    assert not next_font.get_bold()
-    assert time_font.get_bold()
+    assert fonts.role_of(title_font) == "regular"
+    assert fonts.role_of(next_font) == "regular"
+    assert fonts.role_of(time_font) == "semibold-tabular"
+    assert fonts.role_of(_header) == "semibold"
     assert next_font.get_height() == title_font.get_height()
     assert clock.color == mockup.TODAY_TIME
     assert clock.text == "11:15"
