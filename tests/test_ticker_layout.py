@@ -284,7 +284,7 @@ def test_disabled_ticker_keeps_the_full_screen(monkeypatch):
     _screen, metrics = _paint(_config(), monkeypatch=monkeypatch)
     assert metrics["ticker_band"] == 0
     assert metrics["content_bottom"] == 476
-    assert metrics["transit_row_count"] == 2
+    assert metrics["transit_row_count"] == 1
 
 
 def _without_enlarged_fonts(config):
@@ -320,11 +320,11 @@ def test_default_fonts_keep_both_cards_above_the_band(monkeypatch):
 
 
 def test_enlarged_transit_cards_drop_one_row_under_the_band(monkeypatch):
-    """Les cartes agrandies remplissent déjà l'écran : 32 px en bas en retire une."""
+    """Les cartes agrandies tiennent sur une ligne. Le bandeau les garde au-dessus."""
     _off_screen, off = _paint(_config(), monkeypatch=monkeypatch)
     _on_screen, on = _paint(_config(ticker_on=True), monkeypatch=monkeypatch)
 
-    assert off["transit_row_count"] == 2
+    assert off["transit_row_count"] == 1
     assert on["transit_row_count"] == 1
     assert on["content_bottom"] == 444
     assert on["character_bottom"] <= on["content_bottom"]
@@ -360,7 +360,7 @@ def test_fitted_cards_keep_bus_and_metro_above_the_black_band(monkeypatch):
     screen, metrics = _paint(cfg, monkeypatch=monkeypatch)
     assert display.transit_card_layout(cfg)["card_height"] <= 92
     assert metrics["ticker_band"] == 32
-    assert metrics["transit_row_count"] == 2
+    assert metrics["transit_row_count"] == 1
     assert metrics["panel"] is not None
     assert metrics["panel"].bottom <= metrics["content_bottom"]
     assert metrics["character_bottom"] <= metrics["content_bottom"]
@@ -375,7 +375,7 @@ def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
     later, _later_metrics = _paint(
         _with_fitted_cards(_config(ticker_on=True)), phase=4.0, monkeypatch=monkeypatch
     )
-    assert early_metrics["transit_row_count"] == 2
+    assert early_metrics["transit_row_count"] == 1
     assert pygame.image.tostring(early, "RGB") == pygame.image.tostring(later, "RGB")
     assert early.get_at((0, 479))[:3] == ticker.BAND_BG
     assert early.get_at((799, 450))[:3] == ticker.BAND_BG

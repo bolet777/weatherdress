@@ -24,13 +24,13 @@ DEFAULT_LAYOUT = {
     # Décalage vertical fin du bloc météo (px, négatif = remonter)
     "weather_transit_vertical_offset_px": 0,
     # Tailles de police (min / max en px, bornées par l’écran)
-    "weather_temp_font_min": 52,
-    "weather_temp_font_max": 102,
+    "weather_temp_font_min": 44,
+    "weather_temp_font_max": 87,
     "weather_desc_font_min": 22,
     "weather_desc_font_max": 38,
     # Heure (pilule du haut). Sur 480 px de haut, la taille retenue est le max.
-    "time_font_min": 48,
-    "time_font_max": 72,
+    "time_font_min": 40,
+    "time_font_max": 59,
     # Fond de la pilule : [R, G, B] ou [R, G, B, A]. Le 4e canal est l’opacité.
     "time_pill_bg": [16, 39, 67, 242],
 }

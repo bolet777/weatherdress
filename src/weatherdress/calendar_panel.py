@@ -16,20 +16,22 @@ HORIZON_DAYS = 4
 ELLIPSIS = "…"
 PANEL_PAD = 12
 TIME_GAP = 10
-MIN_GAP = 4
+MIN_GAP = 6
 MAX_TODAY_SLOTS = 5
 _MIN_PX = 16
-_MAX_PX = 72
-# On ajoute une ligne seulement si la police reste proche du maximum lisible.
-_FONT_FLOOR = 0.88
+_MAX_PX = 24
+# On ajoute une ligne si la police reste assez grande pour être lue de loin.
+_FONT_FLOOR = 0.80
 
 TODAY_TIME = (242, 164, 62)
 TODAY_TEXT = (255, 255, 255)
 TODAY_HEADER = (255, 255, 255)
 NEXT_TEXT = (176, 186, 204)
 NEXT_TIME = (242, 164, 62)
-WASH_RGBA = (255, 255, 255, 28)
-EVENT_WASH_RGBA = (255, 186, 96, 36)
+WASH_RGBA = (255, 255, 255, 22)
+EVENT_WASH_RGBA = (255, 186, 96, 28)
+# Filets de l'agenda, plus discrets que le séparateur des cartes transport.
+AGENDA_RULE = (206, 214, 226, 36)
 
 _WEEKDAYS = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
 _MONTHS = (
@@ -586,7 +588,7 @@ def paint_agenda(screen, laid):
             display._glass_line(
                 big,
                 scale,
-                display.TRANSIT_DIVIDER,
+                AGENDA_RULE,
                 (strip_w + 8, laid.divider_y - panel.y),
                 (panel.w - 10, laid.divider_y - panel.y),
             )
@@ -602,7 +604,7 @@ def paint_agenda(screen, laid):
                 display._glass_line(
                     big,
                     scale,
-                    display.TRANSIT_DIVIDER,
+                    AGENDA_RULE,
                     (strip_w + 8, y),
                     (panel.w - 10, y),
                 )
@@ -613,7 +615,7 @@ def paint_agenda(screen, laid):
             display._glass_line(
                 big,
                 scale,
-                display.TRANSIT_DIVIDER,
+                AGENDA_RULE,
                 (x, top),
                 (x, bottom),
             )

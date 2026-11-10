@@ -41,7 +41,8 @@ TRANSIT_BADGE_RADIUS = 12
 TRANSIT_BADGE_BG = (47, 116, 242)
 # Ancien nom du bandeau : le badge bus et métro partage cette couleur.
 TRANSIT_CARD_STRIP_BUS = TRANSIT_BADGE_BG
-TRANSIT_CARD_GLASS = (36, 52, 82, 220)
+# Verre sombre, peu saturé, un peu transparent : le fond reste lisible derrière.
+TRANSIT_CARD_GLASS = (14, 22, 36, 186)
 TRANSIT_CARD_BORDER = (214, 224, 242, 120)
 TRANSIT_DIVIDER = (214, 224, 242, 150)
 TRANSIT_TITLE = (255, 255, 255)
@@ -301,11 +302,37 @@ def _font_size_clamped(layout, key_min, key_max, screen_h, fallback_frac):
 
 _weather_icon_source_cache = {}
 _weather_icon_scaled_cache = {}
+_weather_icon_fraction_cache = {}
 
 # Hauteur icône / hauteur du texte température (>1 = icône un peu au-dessus de la ligne)
 WEATHER_ICON_HEIGHT_FACTOR = 1.5
 # Dessin HR puis réduction pour limiter crénelures (cf. TIME_PILL_AA_SCALE)
 WEATHER_ICON_AA_SCALE = 3
+
+
+def _icon_ink_fraction(icon_path):
+    """Part utile du PNG. Le reste est du transparent qui ne doit pas écarter le texte."""
+    cached = _weather_icon_fraction_cache.get(icon_path)
+    if cached is not None:
+        return cached
+    if icon_path not in _weather_icon_source_cache:
+        _weather_icon_source_cache[icon_path] = pygame.image.load(icon_path).convert_alpha()
+    raw = _weather_icon_source_cache[icon_path]
+    top, bottom = _ink_span(raw)
+    fraction = max(0.25, (bottom - top + 1) / max(1, raw.get_height()))
+    _weather_icon_fraction_cache[icon_path] = fraction
+    return fraction
+
+
+def _icon_box_height(line_h, temp_ink_h, icon_path):
+    """Hauteur du PNG. Un soleil plein cadre est ramené à la taille du chiffre."""
+    natural = max(1, int(round(line_h * WEATHER_ICON_HEIGHT_FACTOR)))
+    if not icon_path:
+        return natural
+    fraction = _icon_ink_fraction(icon_path)
+    if natural * fraction <= temp_ink_h * 1.08:
+        return natural
+    return max(1, int(round(temp_ink_h * 1.08 / fraction)))
 
 
 def _weather_icon_scaled_to_height(icon_path, height_px):
@@ -360,6 +387,7 @@ def _blit_temperature_with_icon(
     color,
     shadow,
     icon_path,
+    icon_box_h=None,
 ):
     """
     Température + icône sur une ligne, icône à droite du texte.
@@ -370,7 +398,10 @@ def _blit_temperature_with_icon(
     txt = font.render(temp_line, True, color)
     sh_surf = font.render(temp_line, True, (30, 30, 35)) if shadow else None
     mh = txt.get_height()
-    icon_scale_h = max(1, int(round(mh * WEATHER_ICON_HEIGHT_FACTOR)))
+    if icon_box_h is None:
+        icon_scale_h = max(1, int(round(mh * WEATHER_ICON_HEIGHT_FACTOR)))
+    else:
+        icon_scale_h = max(1, int(icon_box_h))
     icon_surf = None
     if icon_path:
         try:
@@ -437,9 +468,8 @@ def _bottom_limit(screen_h, content_bottom):
 
 TIME_PILL_AA_SCALE = 3
 TIME_PILL_TOP_MARGIN = 12
-# Part de la hauteur d’écran visée pour la police. 0,15 × 480 = 72 px,
-# taille dont le glyphe « 08:49 » occupe ~8 % de la hauteur (pilule de référence).
-TIME_PILL_FONT_FRAC = 0.15
+# Part de la hauteur d’écran visée pour la police. 0,123 × 480 = 59 px.
+TIME_PILL_FONT_FRAC = 0.123
 TIME_PILL_FG = (248, 248, 248)
 TIME_PILL_BG_DEFAULT = (16, 39, 67, 242)
 
@@ -621,6 +651,78 @@ def plan_right_column_vertical_layout(
     return weather_top, transit_top
 
 
+# Espace entre l'encre de la température (et du nuage) et celle de la description.
+WEATHER_INK_GAP = 10
+
+
+def _ink_span(surface):
+    """Haut et bas des pixels visibles. Le reste est le blanc interne de la police."""
+    width, height = surface.get_size()
+    top = None
+    bottom = 0
+    step = 2 if width > 40 else 1
+    for y in range(height):
+        hit = False
+        for x in range(0, width, step):
+            if surface.get_at((x, y)).a > 24:
+                hit = True
+                break
+        if hit:
+            if top is None:
+                top = y
+            bottom = y
+    if top is None:
+        return 0, max(0, height - 1)
+    return top, bottom
+
+
+def _stack_weather(font_temp, temp_line, icon_surf, font_desc, desc_sample):
+    """Place la description sous l'encre, pas sous la boîte de ligne d'Inter.
+
+    Retourne (décalage jusqu'au haut de la description, pixels vides sous
+    la description, hauteur visuelle sans description).
+    """
+    text = font_temp.render(temp_line, True, (255, 255, 255))
+    _top, bottom = _ink_span(text)
+    if icon_surf is not None:
+        iy = (text.get_height() - icon_surf.get_height()) // 2
+        _icon_top, icon_bottom = _ink_span(icon_surf)
+        bottom = max(bottom, iy + icon_bottom)
+    visual_temp = bottom + 4
+    if not desc_sample:
+        return visual_temp, 0, visual_temp
+    desc = font_desc.render(desc_sample, True, (255, 255, 255))
+    desc_top, desc_bottom = _ink_span(desc)
+    advance = max(0, bottom + WEATHER_INK_GAP - desc_top)
+    trim = max(0, desc.get_height() - desc_bottom - 4)
+    return advance, trim, visual_temp
+
+
+def _draw_weather_description(
+    surface,
+    origin,
+    desc_lines,
+    font_desc,
+    anchor_x,
+    color,
+    use_shadow,
+    desc_advance,
+    desc_trim,
+    line_gap,
+    align,
+):
+    """Dessine la description et retourne le bas utile du bloc météo."""
+    if not desc_lines:
+        return origin + desc_advance
+    y = origin + desc_advance
+    blit = _blit_text_left if align == "left" else _blit_text_right
+    for index, line in enumerate(desc_lines):
+        y += blit(surface, font_desc, line, anchor_x, y, color, shadow=use_shadow)
+        if index < len(desc_lines) - 1:
+            y += line_gap
+    return y - desc_trim
+
+
 def _weather_block_layout(
     config,
     current_weather,
@@ -648,7 +750,7 @@ def _weather_block_layout(
     right_x = screen_w - margin_right
 
     temp_size = _font_size_clamped(
-        layout, "weather_temp_font_min", "weather_temp_font_max", screen_h, 0.22
+        layout, "weather_temp_font_min", "weather_temp_font_max", screen_h, 0.187
     )
     desc_size = _font_size_clamped(
         layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.065
@@ -678,17 +780,27 @@ def _weather_block_layout(
     if not desc_lines and desc:
         desc_lines = [desc]
 
-    gap_td = 10
     line_gap = 6
     temp_line_h = font_temp.get_height()
-    icon_target_h = max(1, int(round(temp_line_h * WEATHER_ICON_HEIGHT_FACTOR)))
-    temp_h = max(temp_line_h, icon_target_h) if icon_path else temp_line_h
+    probe = font_temp.render(temp_line, True, (255, 255, 255))
+    ink_top, ink_bottom = _ink_span(probe)
+    icon_target_h = _icon_box_height(temp_line_h, ink_bottom - ink_top + 1, icon_path)
+    icon_surf = None
+    if icon_path:
+        try:
+            icon_surf = _weather_icon_scaled_to_height(icon_path, icon_target_h)
+        except pygame.error:
+            icon_surf = None
+    desc_advance, desc_trim, visual_temp = _stack_weather(
+        font_temp, temp_line, icon_surf, font_desc, desc_lines[0] if desc_lines else ""
+    )
     if desc_lines:
         dh = font_desc.get_height()
         desc_block_h = len(desc_lines) * dh + max(0, len(desc_lines) - 1) * line_gap
+        weather_total_h = desc_advance + desc_block_h - desc_trim
     else:
         desc_block_h = 0
-    weather_total_h = temp_h + gap_td + desc_block_h
+        weather_total_h = visual_temp
 
     if mode == "screen_right":
         temp_text_w = font_temp.size(temp_line)[0]
@@ -711,10 +823,12 @@ def _weather_block_layout(
         "color": color,
         "use_shadow": use_shadow,
         "icon_path": icon_path,
+        "icon_target_h": icon_target_h,
         "left_x": left_x,
         "right_x": right_x,
         "column_left": column_left,
-        "gap_td": gap_td,
+        "desc_advance": desc_advance,
+        "desc_trim": desc_trim,
         "line_gap": line_gap,
         "weather_total_h": weather_total_h,
     }
@@ -764,7 +878,8 @@ def draw_weather_text_block(
     left_x = prep["left_x"]
     right_x = prep["right_x"]
     column_left = prep["column_left"]
-    gap_td = prep["gap_td"]
+    desc_advance = prep["desc_advance"]
+    desc_trim = prep["desc_trim"]
     line_gap = prep["line_gap"]
     total_h = prep["weather_total_h"]
 
@@ -777,49 +892,63 @@ def draw_weather_text_block(
 
     limit = _bottom_limit(screen_h, content_bottom)
     if mode == "screen_right":
-        y = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
-        y = max(top_safe, min(y, min(uh - total_h - 8, limit - total_h)))
-        y += _blit_temperature_with_icon(
+        origin = max(int(uh * 0.14), (uh - total_h) // 2) + v_off
+        origin = max(top_safe, min(origin, min(uh - total_h - 8, limit - total_h)))
+        _blit_temperature_with_icon(
             surface,
             "right",
             right_x,
-            y,
+            origin,
             temp_line,
             font_temp,
             color,
             use_shadow,
             icon_path,
+            prep.get("icon_target_h"),
         )
-        y += gap_td
-        for i, ln in enumerate(desc_lines):
-            y += _blit_text_right(
-                surface, font_desc, ln, right_x, y, color, shadow=use_shadow
-            )
-            if i < len(desc_lines) - 1:
-                y += line_gap
+        y = _draw_weather_description(
+            surface,
+            origin,
+            desc_lines,
+            font_desc,
+            right_x,
+            color,
+            use_shadow,
+            desc_advance,
+            desc_trim,
+            line_gap,
+            align="right",
+        )
         return {"column_left": column_left, "bottom_y": y}
 
-    y = int(block_top_y)
-    y = max(top_safe, min(y, limit - total_h))
+    origin = int(block_top_y)
+    origin = max(top_safe, min(origin, limit - total_h))
 
-    y += _blit_temperature_with_icon(
+    _blit_temperature_with_icon(
         surface,
         "left",
         left_x,
-        y,
+        origin,
         temp_line,
         font_temp,
         color,
         use_shadow,
         icon_path,
+        prep.get("icon_target_h"),
     )
-    y += gap_td
-    for i, ln in enumerate(desc_lines):
-        y += _blit_text_left(
-            surface, font_desc, ln, left_x, y, color, shadow=use_shadow
-        )
-        if i < len(desc_lines) - 1:
-            y += line_gap
+    y = _draw_weather_description(
+        surface,
+        origin,
+        desc_lines,
+        font_desc,
+        left_x,
+        color,
+        use_shadow,
+        desc_advance,
+        desc_trim,
+        line_gap,
+        align="left",
+    )
     return {"column_left": column_left, "bottom_y": y}
 
 

@@ -70,7 +70,7 @@ def test_display_top_safe_margin_grows_with_screen():
 
 def test_time_pill_default_matches_reference_on_480():
     metrics = display._time_pill_metrics(480)
-    assert metrics["font_px"] == 72
+    assert metrics["font_px"] == 59
     assert metrics["bg"] == (16, 39, 67, 242)
 
 

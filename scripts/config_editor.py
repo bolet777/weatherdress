@@ -305,8 +305,7 @@ FIELDS = {
         "label": "Taille max. heure",
         "help": (
             "Taille maximale de l’heure, en pixels. "
-            "Sur un écran de 480 px de haut, le défaut (72) est ce plafond : "
-            "l’heure a la taille de la pilule de référence. "
+            "Sur un écran de 480 px de haut, le défaut (59) est ce plafond. "
             "Augmenter cette valeur agrandit l’heure sur un grand écran."
         ),
     },

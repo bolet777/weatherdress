@@ -15,9 +15,9 @@ SAMPLE_TEXT = (
 DEFAULT_HEIGHT = 32
 DEFAULT_SPEED = 48
 LOOP_GAP = 28
-# Même bleu clair que le bandeau « Aujourd'hui » de l'agenda.
-BAND_BG = (214, 228, 246)
-BAND_FG = (0, 0, 0)
+# Bande sombre : le défilement reste lisible sans prendre le pas sur la scène.
+BAND_BG = (16, 20, 28)
+BAND_FG = (236, 232, 224)
 
 
 def settings(config):
