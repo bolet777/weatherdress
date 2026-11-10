@@ -32,9 +32,9 @@ TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 20
-TRANSIT_CARD_SUBTITLE_PX = 16
-TRANSIT_CARD_TIMES_PX = 18
+TRANSIT_CARD_TITLE_PX = 28
+TRANSIT_CARD_SUBTITLE_PX = 21
+TRANSIT_CARD_TIMES_PX = 24
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_GLASS_AA = 3
 TRANSIT_BADGE_SIDE = 48
@@ -666,6 +666,34 @@ def plan_right_column_vertical_layout(
 
 # Espace entre l'encre de la température (et du nuage) et celle de la description.
 WEATHER_INK_GAP = 10
+
+
+_visible_right_cache = {}
+
+
+def visible_right(surface, cache_key=None):
+    """Dernière colonne qui contient un pixel visible."""
+    if cache_key is not None and cache_key in _visible_right_cache:
+        return _visible_right_cache[cache_key]
+    if surface is None:
+        return 0
+    width, height = surface.get_size()
+    if width <= 0 or height <= 0:
+        return 0
+    step = 3 if height > 80 else 1
+    found = 0
+    for x in range(width - 1, -1, -1):
+        hit = False
+        for y in range(0, height, step):
+            if surface.get_at((x, y)).a > 24:
+                hit = True
+                break
+        if hit:
+            found = x
+            break
+    if cache_key is not None:
+        _visible_right_cache[cache_key] = found
+    return found
 
 
 def _ink_span(surface):
@@ -1345,6 +1373,44 @@ def transit_panel_last_visible_card_bottom(
     return last_bottom
 
 
+_transit_fit_cache = {}
+
+
+def _transit_fonts_that_fit(card_w, card_h, rows, card_layout):
+    """Plus grande taille qui laisse le titre et la direction entiers à côté des horaires."""
+    titles = tuple(row[1] for row in rows if row[1])
+    subtitles = tuple(row[2] for row in rows if row[2])
+    cap_title = card_layout["title_px"]
+    cap_sub = card_layout["subtitle_px"]
+    cap_times = card_layout["times_px"]
+    key = (card_w, card_h, titles, subtitles, cap_title, cap_sub, cap_times)
+    cached = _transit_fit_cache.get(key)
+    if cached is not None:
+        return cached
+    gutter = transit_content_gutter(card_w, card_h)
+    chosen = (cap_title, cap_sub, cap_times)
+    for percent in range(100, 55, -2):
+        title_px = max(15, int(round(cap_title * percent / 100)))
+        sub_px = max(13, int(round(cap_sub * percent / 100)))
+        times_px = max(14, int(round(cap_times * percent / 100)))
+        pill = _transit_times_pill(
+            times_px, [22, 22], TRANSIT_TIMES, max(16, card_h - 16)
+        )
+        room = card_w - gutter - 12 - pill.get_width() - 6
+        if room < 48:
+            continue
+        title_font = fonts.load(title_px, "semibold")
+        sub_font = fonts.load(sub_px, "regular")
+        titles_fit = all(title_font.size(text)[0] <= room for text in titles)
+        subtitles_fit = all(sub_font.size(text)[0] <= room for text in subtitles)
+        if titles_fit and subtitles_fit:
+            chosen = (title_px, sub_px, times_px)
+            break
+        chosen = (title_px, sub_px, times_px)
+    _transit_fit_cache[key] = chosen
+    return chosen
+
+
 def draw_transit_panel(
     screen,
     transit_data,
@@ -1384,8 +1450,11 @@ def draw_transit_panel(
     right_x = screen_w - margin_right
     card_w = max(40, right_x - int(column_left))
 
-    title_font = fonts.load(card_layout["title_px"], "semibold")
-    sub_font = fonts.load(card_layout["subtitle_px"], "regular")
+    title_px, subtitle_px, times_px = _transit_fonts_that_fit(
+        card_w, card_h, rows, card_layout
+    )
+    title_font = fonts.load(title_px, "semibold")
+    sub_font = fonts.load(subtitle_px, "regular")
     title_rgb = TRANSIT_TITLE
     sub_rgb = TRANSIT_SUBTITLE
     times_rgb = TRANSIT_TIMES
@@ -1408,9 +1477,7 @@ def draw_transit_panel(
         text_left = card_rect.x + transit_content_gutter(card_rect.w, card_rect.h)
         text_right = card_rect.right - pad_inner
         mid_y = card_rect.centery
-        pill = _transit_times_pill(
-            card_layout["times_px"], minutes, times_rgb, card_h - 16
-        )
+        pill = _transit_times_pill(times_px, minutes, times_rgb, card_h - 16)
         pill_left = text_right - pill.get_width()
         beside_w = max(1, pill_left - 6 - text_left)
         title_text = calendar_panel.fit_ellipsis(title_font, title, beside_w)
@@ -1654,6 +1721,14 @@ def render(
     )
 
     column_left = int(weather_layout["column_left"])
+    if char_img is not None:
+        gap_px = int(layout["weather_gap_after_character_px"])
+        ink_right = char_rect.left + visible_right(
+            char_img, (char_path, char_img.get_width(), char_img.get_height())
+        )
+        # Le PNG a souvent du vide à droite du dessin. Les cartes avancent
+        # jusqu'au personnage visible ; la température reste à sa place.
+        column_left = min(column_left, max(0, ink_right + gap_px))
     card_w = max(40, screen_w - margin_right - column_left)
     transit_panel = None
     if transit_start_y is not None and transit_panel_h > 0:
