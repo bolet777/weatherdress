@@ -32,7 +32,7 @@ TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 30
+TRANSIT_CARD_TITLE_PX = 20
 TRANSIT_CARD_SUBTITLE_PX = 16
 TRANSIT_CARD_TIMES_PX = 18
 TRANSIT_STRIP_MODE_LETTER_PX = 42
@@ -1197,8 +1197,8 @@ def _transit_times_pill(times_px, minutes, times_color, max_h):
     font = fonts.load(max(1, times_px * scale), "semibold-tabular")
     labels = [f"{minute} min" for minute in minutes] if minutes else ["—"]
     surfs = [font.render(label, True, times_color) for label in labels]
-    gap = 8 * scale
-    pad_x = 10 * scale
+    gap = 6 * scale
+    pad_x = 8 * scale
     pad_y = 6 * scale
     text_w = sum(surf.get_width() for surf in surfs)
     text_w += (gap * 2) * max(0, len(surfs) - 1)
@@ -1412,51 +1412,30 @@ def draw_transit_panel(
             card_layout["times_px"], minutes, times_rgb, card_h - 16
         )
         pill_left = text_right - pill.get_width()
-        full_w = max(1, text_right - text_left)
-        beside_w = max(1, pill_left - 10 - text_left)
-        title_text = calendar_panel.fit_ellipsis(title_font, title, full_w)
+        beside_w = max(1, pill_left - 6 - text_left)
+        title_text = calendar_panel.fit_ellipsis(title_font, title, beside_w)
         subtitle_text = calendar_panel.fit_ellipsis(sub_font, subtitle, beside_w)
         t_surf = title_font.render(title_text, True, title_rgb)
         show_sub = bool(subtitle_text) and (
             mode == "bus" or subtitle_text != title_text
         )
-        s_surf = (
-            sub_font.render(subtitle_text, True, sub_rgb) if show_sub else None
-        )
         previous_clip = screen.get_clip()
-        if s_surf is not None:
+        screen.set_clip(
+            pygame.Rect(text_left, card_rect.y, beside_w, card_rect.h).clip(
+                previous_clip
+            )
+        )
+        if show_sub:
+            s_surf = sub_font.render(subtitle_text, True, sub_rgb)
             gap = 3
-            row_h = max(s_surf.get_height(), pill.get_height())
-            block_h = t_surf.get_height() + gap + row_h
+            block_h = t_surf.get_height() + gap + s_surf.get_height()
             ty = mid_y - block_h // 2
-            screen.set_clip(
-                pygame.Rect(text_left, card_rect.y, full_w, card_rect.h).clip(
-                    previous_clip
-                )
-            )
             screen.blit(t_surf, (text_left, ty))
-            sub_y = ty + t_surf.get_height() + gap
-            screen.set_clip(
-                pygame.Rect(text_left, card_rect.y, beside_w, card_rect.h).clip(
-                    previous_clip
-                )
-            )
-            screen.blit(
-                s_surf, (text_left, sub_y + (row_h - s_surf.get_height()) // 2)
-            )
-            screen.set_clip(previous_clip)
-            screen.blit(
-                pill, (pill_left, sub_y + (row_h - pill.get_height()) // 2)
-            )
+            screen.blit(s_surf, (text_left, ty + t_surf.get_height() + gap))
         else:
-            screen.set_clip(
-                pygame.Rect(text_left, card_rect.y, beside_w, card_rect.h).clip(
-                    previous_clip
-                )
-            )
             screen.blit(t_surf, (text_left, mid_y - t_surf.get_height() // 2))
-            screen.set_clip(previous_clip)
-            screen.blit(pill, (pill_left, mid_y - pill.get_height() // 2))
+        screen.set_clip(previous_clip)
+        screen.blit(pill, (pill_left, mid_y - pill.get_height() // 2))
 
 
 def render(
