@@ -668,34 +668,6 @@ def plan_right_column_vertical_layout(
 WEATHER_INK_GAP = 10
 
 
-_visible_right_cache = {}
-
-
-def visible_right(surface, cache_key=None):
-    """Dernière colonne qui contient un pixel visible."""
-    if cache_key is not None and cache_key in _visible_right_cache:
-        return _visible_right_cache[cache_key]
-    if surface is None:
-        return 0
-    width, height = surface.get_size()
-    if width <= 0 or height <= 0:
-        return 0
-    step = 3 if height > 80 else 1
-    found = 0
-    for x in range(width - 1, -1, -1):
-        hit = False
-        for y in range(0, height, step):
-            if surface.get_at((x, y)).a > 24:
-                hit = True
-                break
-        if hit:
-            found = x
-            break
-    if cache_key is not None:
-        _visible_right_cache[cache_key] = found
-    return found
-
-
 def _ink_span(surface):
     """Haut et bas des pixels visibles. Le reste est le blanc interne de la police."""
     width, height = surface.get_size()
@@ -1721,14 +1693,6 @@ def render(
     )
 
     column_left = int(weather_layout["column_left"])
-    if char_img is not None:
-        gap_px = int(layout["weather_gap_after_character_px"])
-        ink_right = char_rect.left + visible_right(
-            char_img, (char_path, char_img.get_width(), char_img.get_height())
-        )
-        # Le PNG a souvent du vide à droite du dessin. Les cartes avancent
-        # jusqu'au personnage visible ; la température reste à sa place.
-        column_left = min(column_left, max(0, ink_right + gap_px))
     card_w = max(40, screen_w - margin_right - column_left)
     transit_panel = None
     if transit_start_y is not None and transit_panel_h > 0:
