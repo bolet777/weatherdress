@@ -60,9 +60,9 @@
     },
     "transit_refresh_seconds": 30,
     "transit_alternate_seconds": 5,
-    "card_title_font_px": 22,
-    "card_subtitle_font_px": 16,
-    "card_times_font_px": 24,
+    "card_title_font_px": 16,
+    "card_subtitle_font_px": 14,
+    "card_times_font_px": 16,
     "strip_mode_letter_font_px": 42,
     "card_height_px": null
   },

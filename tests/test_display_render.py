@@ -49,6 +49,16 @@ def test_plan_right_column_vertical_layout_centers_on_character():
     assert t_top == w_top + weather_h + display.TRANSIT_AFTER_WEATHER_GAP
 
 
+def test_lower_transit_start_uses_the_free_space_below():
+    dropped = display.lower_transit_start(200, 160, 480, 444)
+    assert dropped == 200 + display.TRANSIT_LOWER_PX
+    kept = display.lower_transit_start(200, 160, 480, 364)
+    assert kept == 200
+    flush = display.lower_transit_start(252, 171, 480, 444)
+    assert flush == 252 + (444 - 423 - display.TRANSIT_LOWER_MARGIN)
+    assert flush + 171 <= 444
+
+
 def test_resolve_transit_panel_start_y_aligns_on_character_feet():
     char_rect = pygame.Rect(0, 0, 100, 400)
     char_rect.midbottom = (200, 460)

@@ -26,12 +26,15 @@ CIRCLE_RADIUS = 210
 CIRCLE_TOP_INSET = 14  # espace entre le bord haut de l’écran et le sommet du médaillon
 
 TRANSIT_AFTER_WEATHER_GAP = 16
+# Descente des cartes dans le vide sous elles. La température ne bouge pas.
+TRANSIT_LOWER_PX = 40
+TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 22
-TRANSIT_CARD_SUBTITLE_PX = 16
-TRANSIT_CARD_TIMES_PX = 24
+TRANSIT_CARD_TITLE_PX = 16
+TRANSIT_CARD_SUBTITLE_PX = 14
+TRANSIT_CARD_TIMES_PX = 16
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_GLASS_AA = 3
 TRANSIT_BADGE_SIDE = 48
@@ -626,6 +629,16 @@ def resolve_transit_panel_start_y(
     panel_h = transit_panel_content_height(rows, row_stride)
     feet_y = min(int(char_rect.bottom), _bottom_limit(screen_h, content_bottom))
     return feet_y - panel_h
+
+
+def lower_transit_start(start_y, panel_h, screen_h, content_bottom=None):
+    """Descend le bloc transport ou agenda dans l'espace libre au-dessus du bandeau."""
+    if start_y is None or panel_h <= 0:
+        return start_y
+    limit = _bottom_limit(screen_h, content_bottom)
+    slack = limit - (int(start_y) + int(panel_h))
+    drop = min(TRANSIT_LOWER_PX, max(0, slack - TRANSIT_LOWER_MARGIN))
+    return int(start_y) + drop
 
 
 def plan_right_column_vertical_layout(
@@ -1587,6 +1600,10 @@ def render(
                     v_off,
                     content_bottom=bottom,
                 )
+        if transit_start_y is not None:
+            transit_start_y = lower_transit_start(
+                transit_start_y, transit_panel_h, screen_h, bottom
+            )
 
     weather_layout = draw_weather_text_block(
         screen,
@@ -1665,6 +1682,8 @@ def render(
     if side == "calendar":
         if panel is None:
             top = int(weather_layout["bottom_y"]) + TRANSIT_AFTER_WEATHER_GAP
+            height = max(0, bottom - top)
+            top = lower_transit_start(top, height, screen_h, bottom)
             panel = pygame.Rect(
                 column_left,
                 top,
