@@ -48,8 +48,8 @@ TRANSIT_CARD_STRIP_BUS = TRANSIT_BADGE_BG
 TRANSIT_CARD_GLASS = (148, 196, 240, 186)
 TRANSIT_CARD_BORDER = (255, 255, 255, 170)
 TRANSIT_DIVIDER = (32, 44, 62, 70)
-TRANSIT_TITLE = (32, 44, 62)
-TRANSIT_SUBTITLE = (70, 88, 112)
+TRANSIT_TITLE = (255, 255, 255)
+TRANSIT_SUBTITLE = (255, 255, 255)
 TRANSIT_TIMES = (242, 164, 62)
 TRANSIT_TIMES_PILL = (255, 255, 255, 168)
 TRANSIT_PILL_SEP = (32, 44, 62, 90)
@@ -1397,7 +1397,7 @@ def draw_transit_panel(
 ):
     """
     transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
-    Cartes verre clair : badge bleu, titre foncé, horaires dans une capsule.
+    Cartes verre clair : badge bleu, titre blanc, horaires orange dans une capsule.
 
     Si transit.transit_alternate_seconds > 0 (défaut 5), un seul arrêt bus et une seule
     direction métro à la fois, alternés toutes les N secondes (même phase). Si la clé
