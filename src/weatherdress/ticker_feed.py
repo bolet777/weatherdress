@@ -18,7 +18,21 @@ from . import ticker
 MAX_ITEMS = 12
 REQUEST_TIMEOUT_SECONDS = 15
 _TAG = re.compile(r"<[^>]+>")
-_USER_AGENT = "WeatherDress"
+# Un agent « WeatherDress » reçoit souvent une page HTML à la place du RSS.
+_FEED_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+# Radio-Canada sert parfois une page d'erreur si l'en-tête accepte trop de types.
+_FEED_HEADERS = {
+    "User-Agent": _FEED_USER_AGENT,
+    "Accept": "application/rss+xml, application/atom+xml;q=0.9, application/xml;q=0.8, text/xml;q=0.7",
+}
+_FEED_HEADERS_STRICT = {
+    "User-Agent": _FEED_USER_AGENT,
+    "Accept": "application/rss+xml, application/atom+xml",
+}
 
 
 def normalize_feed_url(raw) -> str | None:
@@ -70,7 +84,12 @@ def parse_feed(payload) -> str:
 
 
 def phrase_for_render(fetcher, config) -> str:
-    """Phrase du flux si elle est déjà là, sinon la phrase fixe. Vide si le bandeau est coupé."""
+    """Phrase du flux si elle est déjà là.
+
+    Sans adresse, la phrase fixe. Avec une adresse, rien tant que le flux
+    n'a pas fourni de titres : la phrase d'essai ne masque pas un échec.
+    Vide si le bandeau est coupé.
+    """
     spec = ticker.settings(config)
     if spec is None:
         return ""
@@ -78,6 +97,8 @@ def phrase_for_render(fetcher, config) -> str:
         live = fetcher.snapshot()
         if live:
             return live
+    if spec["url"]:
+        return ""
     return spec["text"]
 
 
@@ -129,29 +150,63 @@ class TickerFetcher:
     def refresh(self) -> None:
         """Une tentative. Une erreur réseau ou un flux vide conserve la phrase précédente."""
         try:
-            response = self._session.get(
-                self.url,
-                headers={"User-Agent": _USER_AGENT},
-                timeout=REQUEST_TIMEOUT_SECONDS,
-            )
-            status = getattr(response, "status_code", 200)
-            if status and int(status) >= 400:
-                raise OSError(f"statut {int(status)}")
-            phrase = parse_feed(getattr(response, "content", b"") or b"")
+            response, body, phrase = self._read(_FEED_HEADERS)
+            if not phrase and not _body_is_xml(body):
+                response, body, phrase = self._read(_FEED_HEADERS_STRICT)
         except Exception as exc:
             print(f"[ticker] Lecture du flux impossible ({type(exc).__name__}).")
             return
         if not phrase:
-            print("[ticker] Le flux n'a aucun titre.")
+            status = getattr(response, "status_code", 200)
+            status_n = int(status or 0)
+            kind = "aucun titre" if _body_is_xml(body) else "corps illisible"
+            print(
+                f"[ticker] Flux refusé : {kind} "
+                f"(HTTP {status_n}, {_response_type(response)})."
+            )
             return
         with self._lock:
             self._phrase = phrase
+
+    def _read(self, headers: dict) -> tuple:
+        response = self._session.get(
+            self.url,
+            headers=headers,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        status = getattr(response, "status_code", 200)
+        if status and int(status) >= 400:
+            raise OSError(f"statut {int(status)}")
+        body = getattr(response, "content", b"") or b""
+        return response, body, parse_feed(body)
 
     def _loop(self) -> None:
         while not self._stop.is_set():
             self.refresh()
             if self._stop.wait(self.refresh_seconds):
                 break
+
+
+def _response_type(response) -> str:
+    headers = getattr(response, "headers", None) or {}
+    getter = getattr(headers, "get", None)
+    raw = getter("content-type") if getter else ""
+    if not raw and getter:
+        raw = getter("Content-Type")
+    text = str(raw or "").split(";", 1)[0].strip()
+    return text or "inconnu"
+
+
+def _body_is_xml(payload) -> bool:
+    if isinstance(payload, str):
+        payload = payload.encode("utf-8")
+    if not payload:
+        return False
+    try:
+        ElementTree.fromstring(payload)
+    except ElementTree.ParseError:
+        return False
+    return True
 
 
 def _local(tag) -> str:

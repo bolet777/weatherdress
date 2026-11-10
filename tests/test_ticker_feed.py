@@ -32,18 +32,21 @@ ATOM = """<?xml version="1.0" encoding="utf-8"?>
 
 
 class Response:
-    def __init__(self, status, content):
+    def __init__(self, status, content, content_type=""):
         self.status_code = status
         self.content = content
+        self.headers = {"content-type": content_type} if content_type else {}
 
 
 class Session:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
+        self.headers = []
 
     def get(self, url, headers=None, timeout=None):
         self.calls.append(url)
+        self.headers.append(headers or {})
         responder = self.responses.pop(0)
         if isinstance(responder, Exception):
             raise responder
@@ -106,14 +109,44 @@ def test_failed_fetch_keeps_the_previous_phrase_and_hides_the_address(capsys):
     assert session.calls == [URL, URL, URL]
 
 
-def test_live_phrase_replaces_the_fixed_sentence_until_the_feed_is_empty():
+def test_configured_feed_hides_the_fixed_sentence_until_titles_arrive():
     config = {"ticker": {"enabled": True, "text": "Phrase fixe", "url": URL}}
     session = Session([Response(200, ATOM.encode("utf-8"))])
     fetcher = TickerFetcher(URL, session=session)
-    assert phrase_for_render(fetcher, config) == "Phrase fixe"
+    assert phrase_for_render(fetcher, config) == ""
+    assert phrase_for_render(None, config) == ""
     fetcher.refresh()
     assert phrase_for_render(fetcher, config) == "●  Première nouvelle  ●  Seconde  ●  "
     assert feed_settings({"ticker": {"enabled": False, "url": URL}}) is None
+
+
+def test_request_asks_for_rss_without_the_app_name():
+    session = Session([Response(200, RSS.encode("utf-8"))])
+    TickerFetcher(URL, session=session).refresh()
+    headers = session.headers[0]
+    assert "rss+xml" in headers["Accept"]
+    assert "WeatherDress" not in headers["User-Agent"]
+    assert TOKEN not in headers["User-Agent"]
+
+
+def test_html_body_is_retried_then_reported_without_the_address(capsys):
+    html = b"<html><body>Acces refuse<br>"
+    session = Session([
+        Response(200, html, "text/html"),
+        Response(200, html, "text/html"),
+    ])
+    fetcher = TickerFetcher(URL, session=session)
+    fetcher.refresh()
+    assert fetcher.snapshot() == ""
+    assert len(session.calls) == 2
+    assert "atom+xml" in session.headers[1]["Accept"]
+    assert "text/xml" not in session.headers[1]["Accept"]
+    captured = capsys.readouterr().out
+    assert "corps illisible" in captured
+    assert "HTTP 200" in captured
+    assert "text/html" in captured
+    assert TOKEN not in captured
+    assert URL not in captured
 
 
 def test_disabled_ticker_does_not_fetch():

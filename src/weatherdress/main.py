@@ -412,7 +412,7 @@ def main():
     if ticker_spec:
         # La phrase fixe est déjà en mémoire avant le thread qui dessine les vues.
         ticker_px = ticker_module.band_font_px(ticker_spec["height"])
-        if ticker_spec["text"]:
+        if ticker_spec["text"] and not ticker_spec["url"]:
             ticker_module.cached_text_surface(ticker_spec["text"], ticker_px)
     builder = SceneCacheBuilder()
     ticker_fetcher = ticker_feed.start_in_background(config)
