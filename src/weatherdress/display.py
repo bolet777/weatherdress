@@ -32,9 +32,9 @@ TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 16
-TRANSIT_CARD_SUBTITLE_PX = 14
-TRANSIT_CARD_TIMES_PX = 16
+TRANSIT_CARD_TITLE_PX = 24
+TRANSIT_CARD_SUBTITLE_PX = 18
+TRANSIT_CARD_TIMES_PX = 20
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_GLASS_AA = 3
 TRANSIT_BADGE_SIDE = 48
@@ -1192,42 +1192,49 @@ def blit_mode_badge(screen, rect, kind):
 
 
 def _transit_times_pill(times_px, minutes, times_color, max_h):
-    """Capsule des prochains passages : « N min », séparées par un filet."""
+    """Capsule des prochains passages : « N min », empilés pour laisser le nom entier."""
     scale = TRANSIT_GLASS_AA
     font = fonts.load(max(1, times_px * scale), "semibold-tabular")
     labels = [f"{minute} min" for minute in minutes] if minutes else ["—"]
     surfs = [font.render(label, True, times_color) for label in labels]
-    gap = 11 * scale
-    pad_x = 14 * scale
-    pad_y = 7 * scale
-    text_w = sum(surf.get_width() for surf in surfs)
-    text_w += (gap * 2) * max(0, len(surfs) - 1)
-    text_h = max(surf.get_height() for surf in surfs)
+    pad_x = 10 * scale
+    pad_y = 6 * scale
+    gap = 6 * scale
+    text_w = max(surf.get_width() for surf in surfs)
+    gaps = gap * max(0, len(surfs) - 1)
+    text_h = sum(surf.get_height() for surf in surfs) + gaps
     pill_h = text_h + 2 * pad_y
-    cap = max(text_h, int(max_h) * scale)
+    cap = max(1, int(max_h) * scale)
     if pill_h > cap:
-        pill_h = cap
+        overflow = pill_h - cap
+        pad_cut = min(overflow, max(0, 2 * pad_y - 4 * scale))
+        pad_y -= pad_cut // 2
+        overflow -= pad_cut
+        if len(surfs) > 1 and overflow > 0:
+            gap = max(2 * scale, gap - overflow // (len(surfs) - 1))
+        gaps = gap * max(0, len(surfs) - 1)
+        text_h = sum(surf.get_height() for surf in surfs) + gaps
+        pill_h = min(cap, text_h + 2 * pad_y)
     pill_w = text_w + 2 * pad_x
     big = pygame.Surface((max(1, pill_w), max(1, pill_h)), pygame.SRCALPHA)
     pygame.draw.rect(
-        big, TRANSIT_TIMES_PILL, big.get_rect(), border_radius=pill_h // 2
+        big, TRANSIT_TIMES_PILL, big.get_rect(), border_radius=min(16 * scale, pill_h // 2)
     )
-    x = pad_x
-    mid = pill_h // 2
-    sep_half = max(4 * scale, pill_h // 5)
+    y = max(0, (pill_h - text_h) // 2)
     for index, surf in enumerate(surfs):
-        big.blit(surf, (x, mid - surf.get_height() // 2))
-        x += surf.get_width()
+        big.blit(surf, (pad_x + (text_w - surf.get_width()) // 2, y))
+        y += surf.get_height()
         if index < len(surfs) - 1:
-            x += gap
+            rule_y = y + gap // 2
+            inset = pad_x + 2 * scale
             pygame.draw.line(
                 big,
                 TRANSIT_PILL_SEP,
-                (x, mid - sep_half),
-                (x, mid + sep_half),
+                (inset, rule_y),
+                (pill_w - inset, rule_y),
                 max(1, scale),
             )
-            x += gap
+            y += gap
     out_w = max(1, round(pill_w / scale))
     out_h = max(1, round(pill_h / scale))
     return pygame.transform.smoothscale(big, (out_w, out_h))
