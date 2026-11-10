@@ -180,12 +180,26 @@ def _draw_rounded_disk_like_time_pill(
     pygame.draw.rect(surf, rgba, rect, border_radius=br)
 
 
-def _rgb_to_rgba(
-    color: Tuple[int, ...],
-) -> Tuple[int, int, int, int]:
-    if len(color) == 4:
-        return int(color[0]), int(color[1]), int(color[2]), int(color[3])
-    return int(color[0]), int(color[1]), int(color[2]), 255
+def _lerp_rgb(
+    a: Tuple[int, int, int],
+    b: Tuple[int, int, int],
+    t: float,
+) -> Tuple[int, int, int]:
+    return tuple(int(round(a[i] + (b[i] - a[i]) * t)) for i in range(3))
+
+
+def _with_alpha(rgb: Tuple[int, ...], alpha: int) -> Tuple[int, int, int, int]:
+    return int(rgb[0]), int(rgb[1]), int(rgb[2]), max(0, min(255, int(alpha)))
+
+
+# Plateau un peu translucide : le fond passe, le disque reste lisible.
+GLASS_PLATE_ALPHA = 132
+# Anneau dépoli, bien plus clair que l’ancienne piste opaque.
+GLASS_TRACK_ALPHA = 48
+GLASS_RIM_ALPHA = 210
+GLASS_REFLECTION_ADD = 46
+GLASS_PROGRESS_ALPHA = 230
+GLASS_PROGRESS_GLOW_ALPHA = 58
 
 
 def _fill_annulus_full(
@@ -253,6 +267,22 @@ def _fill_annulus_sector(
     pygame.draw.polygon(surf, rgba, pi_pts)
 
 
+def _paint_layer(dest: pygame.Surface, paint) -> None:
+    """``pygame.draw`` remplace l'alpha : on dessine sur un calque, puis on compose."""
+    layer = pygame.Surface(dest.get_size(), pygame.SRCALPHA)
+    layer.fill((255, 255, 255, 0))
+    paint(layer)
+    dest.blit(layer, (0, 0))
+
+
+def _paint_light(dest: pygame.Surface, paint) -> None:
+    """Ajoute de la lumière (RVB) sans assombrir le disque sur fond clair."""
+    layer = pygame.Surface(dest.get_size(), pygame.SRCALPHA)
+    layer.fill((0, 0, 0, 0))
+    paint(layer)
+    dest.blit(layer, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+
+
 def _render_supersampled_accessory_disk(
     outer_r: int,
     ring_w: int,
@@ -262,10 +292,10 @@ def _render_supersampled_accessory_disk(
     track_rgba: Tuple[int, int, int, int],
 ) -> Tuple[pygame.Surface, int]:
     """
-    Disque plateau supersamplé : plateau puis anneau piste + progression sur la
-    **même** surface hi-res, un seul ``smoothscale``. L’anneau est légèrement
-    rétracté pour ne pas coïncider avec le bord silhouette du plateau (évite halo
-    noir aux bords clairs).
+    Disque verre supersamplé : plateau translucide, anneau dépoli, liseré
+    lumineux, reflet haut, puis segment de progression. Un seul ``smoothscale``.
+    L’anneau reste rétracté pour ne pas coïncider avec le bord du plateau
+    (évite le halo noir aux bords clairs).
     """
     cw, cx0 = _disk_canvas_half_extent(outer_r, ring_w)
     arc_r = outer_r - ring_w // 2
@@ -286,30 +316,115 @@ def _render_supersampled_accessory_disk(
     inset_hi = min(min_inset, max_inset) if max_inset > 0 else 0.0
     r_outer_draw = r_outer_hi - inset_hi
 
+    # RGB du fond transparent = blanc : le lissage du bord file vers une
+    # frange claire, pas vers du noir.
     hi_plate = pygame.Surface((cw_hi, cw_hi), pygame.SRCALPHA)
+    hi_plate.fill((255, 255, 255, 0))
+    plate_glass = _with_alpha(plate_rgba, min(int(plate_rgba[3]), GLASS_PLATE_ALPHA))
     _draw_rounded_disk_like_time_pill(
-        hi_plate, int(cx_hi), int(cy_hi), int(r_plate_hi), plate_rgba
+        hi_plate, int(cx_hi), int(cy_hi), int(r_plate_hi), plate_glass
     )
 
-    track_c = _rgb_to_rgba(track_rgba)
-    _fill_annulus_full(
-        hi_plate, float(cx_hi), float(cy_hi), r_outer_draw, r_inner_hi, track_c
+    # Reflet discret sur le haut du disque, à l’intérieur de l’anneau.
+    ref_outer = max(1.0, r_inner_hi - max(1.0, 0.35 * ss))
+    ref_inner = ref_outer * 0.62
+    if ref_outer > ref_inner + 1.0:
+        def _reflection(layer, ref_outer=ref_outer, ref_inner=ref_inner):
+            span0 = -math.pi + 0.38
+            span1 = -0.16
+            width = ref_outer - ref_inner
+            steps = 12
+            for i in range(steps):
+                t = (i + 0.5) / steps
+                hump = math.sin(math.pi * t)
+                add = int(GLASS_REFLECTION_ADD * hump * hump)
+                if add < 2:
+                    continue
+                ang = (1.0 - hump) * 0.28
+                ri = ref_inner + width * (i / steps)
+                ro = ref_inner + width * ((i + 1) / steps)
+                _fill_annulus_sector(
+                    layer,
+                    float(cx_hi),
+                    float(cy_hi),
+                    ri,
+                    ro,
+                    span0 + ang,
+                    span1 - ang,
+                    (add, add, add, 255),
+                )
+
+        _paint_light(hi_plate, _reflection)
+
+    frost_rgb = _lerp_rgb(
+        (int(track_rgba[0]), int(track_rgba[1]), int(track_rgba[2])),
+        (255, 255, 255),
+        0.78,
     )
+
+    def _track(layer, frost_rgb=frost_rgb):
+        _fill_annulus_full(
+            layer,
+            float(cx_hi),
+            float(cy_hi),
+            r_outer_draw,
+            r_inner_hi,
+            _with_alpha(frost_rgb, GLASS_TRACK_ALPHA),
+        )
+
+    _paint_layer(hi_plate, _track)
 
     span = max(0.01, (pct / 100.0) * 2 * math.pi)
     start_a = -math.pi / 2
     end_a = start_a + span
-    prog_c = _rgb_to_rgba(progress_rgb)
-    _fill_annulus_sector(
-        hi_plate,
-        float(cx_hi),
-        float(cy_hi),
-        r_inner_hi,
-        r_outer_draw,
-        start_a,
-        end_a,
-        prog_c,
-    )
+    glow = max(1.5, 0.45 * ss)
+    glow_outer = min(float(r_plate_hi) - 1.5, r_outer_draw + glow * 0.25)
+
+    def _progress(layer):
+        _fill_annulus_sector(
+            layer,
+            float(cx_hi),
+            float(cy_hi),
+            max(1.0, r_inner_hi - glow * 0.35),
+            glow_outer,
+            start_a,
+            end_a,
+            _with_alpha(progress_rgb, GLASS_PROGRESS_GLOW_ALPHA),
+        )
+        thickness = r_outer_draw - r_inner_hi
+        bands = 4
+        for i in range(bands):
+            t_mid = (i + 0.5) / bands
+            col = _lerp_rgb(progress_rgb, (255, 255, 255), 0.08 + 0.42 * t_mid)
+            ri = r_inner_hi + thickness * (i / bands)
+            ro = r_inner_hi + thickness * ((i + 1) / bands)
+            _fill_annulus_sector(
+                layer,
+                float(cx_hi),
+                float(cy_hi),
+                ri,
+                ro,
+                start_a,
+                end_a,
+                _with_alpha(col, GLASS_PROGRESS_ALPHA),
+            )
+
+    _paint_layer(hi_plate, _progress)
+
+    lip = max(1.0, 1.15 * ss)
+    rim_outer = min(float(r_plate_hi) - 1.25, r_outer_draw)
+
+    def _rim(layer, rim_outer=rim_outer, lip=lip):
+        _fill_annulus_full(
+            layer,
+            float(cx_hi),
+            float(cy_hi),
+            rim_outer,
+            max(1.0, rim_outer - lip),
+            (255, 255, 255, GLASS_RIM_ALPHA),
+        )
+
+    _paint_layer(hi_plate, _rim)
 
     out = pygame.transform.smoothscale(hi_plate, (cw, cw))
     return out, cx0
