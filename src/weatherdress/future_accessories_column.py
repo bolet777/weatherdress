@@ -22,8 +22,8 @@ COLUMN_DISK_SUPERSAMPLE = 4
 # sur le plateau opaque : sinon smoothscale mélange la couleur à (0,0,0,0) → frange noire.
 COLUMN_RING_OUTER_INSET_HI_MIN = 2
 
-# Taille disques (levier unique) : historique × +15 % × +20 %.
-COLUMN_OUTER_RADIUS_SCALE = 1.625 * 1.15 * 1.2
+# Taille disques (levier unique) : historique × +15 % × +20 % × −10 %.
+COLUMN_OUTER_RADIUS_SCALE = 1.625 * 1.15 * 1.2 * 0.9
 
 # Épaisseur de l’anneau = ratio du rayon extérieur (comme max(4, outer//6) avant plafond fixe).
 COLUMN_RING_WIDTH_OVER_OUTER_RADIUS = 1.0 / 6.0
