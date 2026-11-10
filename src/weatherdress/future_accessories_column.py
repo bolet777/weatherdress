@@ -18,10 +18,6 @@ COLUMN_MAX_TOTAL = 4
 # Anticrénelage : cercle + arcs dessinés en haute résolution puis lissés à l’échelle écran.
 COLUMN_DISK_SUPERSAMPLE = 4
 
-# Rétractation du rayon extérieur de l’anneau (px hi-res) pour le garder entièrement
-# sur le plateau opaque : sinon smoothscale mélange la couleur à (0,0,0,0) → frange noire.
-COLUMN_RING_OUTER_INSET_HI_MIN = 2
-
 # Taille disques (levier unique) : historique × +15 % × +20 % × −10 %.
 COLUMN_OUTER_RADIUS_SCALE = 1.625 * 1.15 * 1.2 * 0.9
 
@@ -192,14 +188,16 @@ def _with_alpha(rgb: Tuple[int, ...], alpha: int) -> Tuple[int, int, int, int]:
     return int(rgb[0]), int(rgb[1]), int(rgb[2]), max(0, min(255, int(alpha)))
 
 
-# Plateau un peu translucide : le fond passe, le disque reste lisible.
-GLASS_PLATE_ALPHA = 132
-# Anneau dépoli, bien plus clair que l’ancienne piste opaque.
-GLASS_TRACK_ALPHA = 48
-GLASS_RIM_ALPHA = 210
-GLASS_REFLECTION_ADD = 46
-GLASS_PROGRESS_ALPHA = 230
-GLASS_PROGRESS_GLOW_ALPHA = 58
+# Centre bleu nuit, peu opaque : le fond reste visible.
+GLASS_CENTER_RGB = (148, 196, 240)
+GLASS_CENTER_ALPHA = 54
+# Anneau vitré fin, en halo. Le blanc reste bas pour éviter l’effet bouton.
+GLASS_RING_WIDTH_OVER_RADIUS = 0.085
+GLASS_GLOW_ALPHA = 58
+GLASS_CORE_ALPHA = 128
+GLASS_SPECULAR_ADD = 78
+GLASS_PROGRESS_ALPHA = 220
+GLASS_PROGRESS_GLOW_ALPHA = 52
 
 
 def _fill_annulus_full(
@@ -288,143 +286,110 @@ def _render_supersampled_accessory_disk(
     ring_w: int,
     pct: int,
     progress_rgb: Tuple[int, int, int],
-    plate_rgba: Tuple[int, int, int, int],
-    track_rgba: Tuple[int, int, int, int],
+    _plate_rgba: Tuple[int, int, int, int],
+    _track_rgba: Tuple[int, int, int, int],
 ) -> Tuple[pygame.Surface, int]:
     """
-    Disque verre supersamplé : plateau translucide, anneau dépoli, liseré
-    lumineux, reflet haut, puis segment de progression. Un seul ``smoothscale``.
-    L’anneau reste rétracté pour ne pas coïncider avec le bord du plateau
-    (évite le halo noir aux bords clairs).
+    Verre liquide : centre bleu nuit translucide, anneau fin en arcs clairs,
+    reflet sur le bord haut, puis segment de progression par-dessus.
+    Un seul ``smoothscale``. Le blanc du calque transparent évite la frange noire.
+    Les couleurs de plateau configurées ne teintent pas ce verre.
     """
     cw, cx0 = _disk_canvas_half_extent(outer_r, ring_w)
-    arc_r = outer_r - ring_w // 2
 
     ss = COLUMN_DISK_SUPERSAMPLE
     cw_hi = cw * ss
-    cx_hi = cx0 * ss
-    cy_hi = cx0 * ss
+    cx_hi = float(cx0 * ss)
+    cy_hi = float(cx0 * ss)
     r_plate_hi = int(round(outer_r * ss))
-    arc_r_hi = arc_r * ss
-    arc_w_hi = max(1, ring_w * ss)
-    r_outer_hi = arc_r_hi + arc_w_hi / 2.0
-    r_inner_hi = max(1.0, arc_r_hi - arc_w_hi / 2.0)
+    r_outer = float(r_plate_hi) - max(2.0, 0.5 * ss)
+    body_w = max(2.4 * ss, r_plate_hi * GLASS_RING_WIDTH_OVER_RADIUS)
+    r_body_in = max(1.0, r_outer - body_w)
+    r_glow_in = max(1.0, r_body_in - body_w * 1.05)
+    r_core_in = r_outer - max(1.2 * ss, body_w * 0.34)
 
-    annulus_w = r_outer_hi - r_inner_hi
-    min_inset = float(max(COLUMN_RING_OUTER_INSET_HI_MIN, ss))
-    max_inset = max(0.0, annulus_w - 1.25)
-    inset_hi = min(min_inset, max_inset) if max_inset > 0 else 0.0
-    r_outer_draw = r_outer_hi - inset_hi
-
-    # RGB du fond transparent = blanc : le lissage du bord file vers une
-    # frange claire, pas vers du noir.
     hi_plate = pygame.Surface((cw_hi, cw_hi), pygame.SRCALPHA)
-    hi_plate.fill((255, 255, 255, 0))
-    plate_glass = _with_alpha(plate_rgba, min(int(plate_rgba[3]), GLASS_PLATE_ALPHA))
+    hi_plate.fill((232, 242, 255, 0))
     _draw_rounded_disk_like_time_pill(
-        hi_plate, int(cx_hi), int(cy_hi), int(r_plate_hi), plate_glass
+        hi_plate,
+        int(cx_hi),
+        int(cy_hi),
+        r_plate_hi,
+        _with_alpha(GLASS_CENTER_RGB, GLASS_CENTER_ALPHA),
     )
 
-    # Reflet discret sur le haut du disque, à l’intérieur de l’anneau.
-    ref_outer = max(1.0, r_inner_hi - max(1.0, 0.35 * ss))
-    ref_inner = ref_outer * 0.62
-    if ref_outer > ref_inner + 1.0:
-        def _reflection(layer, ref_outer=ref_outer, ref_inner=ref_inner):
-            span0 = -math.pi + 0.38
-            span1 = -0.16
-            width = ref_outer - ref_inner
-            steps = 12
-            for i in range(steps):
-                t = (i + 0.5) / steps
-                hump = math.sin(math.pi * t)
-                add = int(GLASS_REFLECTION_ADD * hump * hump)
-                if add < 2:
-                    continue
-                ang = (1.0 - hump) * 0.28
-                ri = ref_inner + width * (i / steps)
-                ro = ref_inner + width * ((i + 1) / steps)
-                _fill_annulus_sector(
-                    layer,
-                    float(cx_hi),
-                    float(cy_hi),
-                    ri,
-                    ro,
-                    span0 + ang,
-                    span1 - ang,
-                    (add, add, add, 255),
-                )
+    def _glass(layer):
+        steps = 8
+        span = r_outer - r_glow_in
+        for i in range(steps):
+            t = (i + 0.5) / steps
+            col = _lerp_rgb((118, 176, 232), (255, 255, 255), t * t)
+            alpha = int(GLASS_GLOW_ALPHA + (GLASS_CORE_ALPHA - GLASS_GLOW_ALPHA) * t * t)
+            ri = r_glow_in + span * (i / steps)
+            ro = r_glow_in + span * ((i + 1) / steps)
+            _fill_annulus_full(
+                layer, cx_hi, cy_hi, ro, ri, _with_alpha(col, alpha)
+            )
 
-        _paint_light(hi_plate, _reflection)
-
-    frost_rgb = _lerp_rgb(
-        (int(track_rgba[0]), int(track_rgba[1]), int(track_rgba[2])),
-        (255, 255, 255),
-        0.78,
-    )
-
-    def _track(layer, frost_rgb=frost_rgb):
-        _fill_annulus_full(
-            layer,
-            float(cx_hi),
-            float(cy_hi),
-            r_outer_draw,
-            r_inner_hi,
-            _with_alpha(frost_rgb, GLASS_TRACK_ALPHA),
-        )
-
-    _paint_layer(hi_plate, _track)
+    _paint_layer(hi_plate, _glass)
 
     span = max(0.01, (pct / 100.0) * 2 * math.pi)
     start_a = -math.pi / 2
     end_a = start_a + span
-    glow = max(1.5, 0.45 * ss)
-    glow_outer = min(float(r_plate_hi) - 1.5, r_outer_draw + glow * 0.25)
 
     def _progress(layer):
-        _fill_annulus_sector(
-            layer,
-            float(cx_hi),
-            float(cy_hi),
-            max(1.0, r_inner_hi - glow * 0.35),
-            glow_outer,
-            start_a,
-            end_a,
-            _with_alpha(progress_rgb, GLASS_PROGRESS_GLOW_ALPHA),
-        )
-        thickness = r_outer_draw - r_inner_hi
-        bands = 4
-        for i in range(bands):
-            t_mid = (i + 0.5) / bands
-            col = _lerp_rgb(progress_rgb, (255, 255, 255), 0.08 + 0.42 * t_mid)
-            ri = r_inner_hi + thickness * (i / bands)
-            ro = r_inner_hi + thickness * ((i + 1) / bands)
+        steps = 6
+        span_r = r_outer - r_glow_in
+        for i in range(steps):
+            t = (i + 0.5) / steps
+            col = _lerp_rgb(progress_rgb, (255, 255, 255), 0.06 + 0.32 * t)
+            alpha = int(
+                GLASS_PROGRESS_GLOW_ALPHA
+                + (GLASS_PROGRESS_ALPHA - GLASS_PROGRESS_GLOW_ALPHA) * t
+            )
+            ri = r_glow_in + span_r * (i / steps)
+            ro = r_glow_in + span_r * ((i + 1) / steps)
             _fill_annulus_sector(
-                layer,
-                float(cx_hi),
-                float(cy_hi),
-                ri,
-                ro,
-                start_a,
-                end_a,
-                _with_alpha(col, GLASS_PROGRESS_ALPHA),
+                layer, cx_hi, cy_hi, ri, ro, start_a, end_a, _with_alpha(col, alpha)
             )
 
     _paint_layer(hi_plate, _progress)
 
-    lip = max(1.0, 1.15 * ss)
-    rim_outer = min(float(r_plate_hi) - 1.25, r_outer_draw)
-
-    def _rim(layer, rim_outer=rim_outer, lip=lip):
-        _fill_annulus_full(
+    def _specular(layer):
+        # Arcs du bord haut, plus forts au milieu, estompés aux extrémités.
+        a0, a1 = -2.55, -1.25
+        steps = 10
+        span_a = a1 - a0
+        for i in range(steps):
+            t = (i + 0.5) / steps
+            hump = math.sin(math.pi * t) ** 1.35
+            add = int(GLASS_SPECULAR_ADD * hump)
+            if add < 6:
+                continue
+            s0 = a0 + span_a * (i / steps)
+            s1 = a0 + span_a * ((i + 1) / steps)
+            _fill_annulus_sector(
+                layer,
+                cx_hi,
+                cy_hi,
+                r_body_in,
+                r_outer,
+                s0,
+                s1,
+                (add, add, add, 255),
+            )
+        _fill_annulus_sector(
             layer,
-            float(cx_hi),
-            float(cy_hi),
-            rim_outer,
-            max(1.0, rim_outer - lip),
-            (255, 255, 255, GLASS_RIM_ALPHA),
+            cx_hi,
+            cy_hi,
+            r_core_in,
+            r_outer,
+            -2.15,
+            -1.65,
+            (70, 70, 70, 255),
         )
 
-    _paint_layer(hi_plate, _rim)
+    _paint_light(hi_plate, _specular)
 
     out = pygame.transform.smoothscale(hi_plate, (cw, cw))
     return out, cx0
