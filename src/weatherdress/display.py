@@ -32,9 +32,9 @@ TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 24
-TRANSIT_CARD_SUBTITLE_PX = 18
-TRANSIT_CARD_TIMES_PX = 20
+TRANSIT_CARD_TITLE_PX = 30
+TRANSIT_CARD_SUBTITLE_PX = 16
+TRANSIT_CARD_TIMES_PX = 18
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_GLASS_AA = 3
 TRANSIT_BADGE_SIDE = 48
@@ -763,10 +763,10 @@ def _weather_block_layout(
     right_x = screen_w - margin_right
 
     temp_size = _font_size_clamped(
-        layout, "weather_temp_font_min", "weather_temp_font_max", screen_h, 0.187
+        layout, "weather_temp_font_min", "weather_temp_font_max", screen_h, 0.20
     )
     desc_size = _font_size_clamped(
-        layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.065
+        layout, "weather_desc_font_min", "weather_desc_font_max", screen_h, 0.075
     )
 
     font_temp = fonts.load(temp_size, "light")
@@ -1192,49 +1192,42 @@ def blit_mode_badge(screen, rect, kind):
 
 
 def _transit_times_pill(times_px, minutes, times_color, max_h):
-    """Capsule des prochains passages : « N min », empilés pour laisser le nom entier."""
+    """Capsule des prochains passages : « N min », côte à côte, séparées par un filet."""
     scale = TRANSIT_GLASS_AA
     font = fonts.load(max(1, times_px * scale), "semibold-tabular")
     labels = [f"{minute} min" for minute in minutes] if minutes else ["—"]
     surfs = [font.render(label, True, times_color) for label in labels]
+    gap = 8 * scale
     pad_x = 10 * scale
     pad_y = 6 * scale
-    gap = 6 * scale
-    text_w = max(surf.get_width() for surf in surfs)
-    gaps = gap * max(0, len(surfs) - 1)
-    text_h = sum(surf.get_height() for surf in surfs) + gaps
+    text_w = sum(surf.get_width() for surf in surfs)
+    text_w += (gap * 2) * max(0, len(surfs) - 1)
+    text_h = max(surf.get_height() for surf in surfs)
     pill_h = text_h + 2 * pad_y
-    cap = max(1, int(max_h) * scale)
+    cap = max(text_h, int(max_h) * scale)
     if pill_h > cap:
-        overflow = pill_h - cap
-        pad_cut = min(overflow, max(0, 2 * pad_y - 4 * scale))
-        pad_y -= pad_cut // 2
-        overflow -= pad_cut
-        if len(surfs) > 1 and overflow > 0:
-            gap = max(2 * scale, gap - overflow // (len(surfs) - 1))
-        gaps = gap * max(0, len(surfs) - 1)
-        text_h = sum(surf.get_height() for surf in surfs) + gaps
-        pill_h = min(cap, text_h + 2 * pad_y)
+        pill_h = cap
     pill_w = text_w + 2 * pad_x
     big = pygame.Surface((max(1, pill_w), max(1, pill_h)), pygame.SRCALPHA)
     pygame.draw.rect(
-        big, TRANSIT_TIMES_PILL, big.get_rect(), border_radius=min(16 * scale, pill_h // 2)
+        big, TRANSIT_TIMES_PILL, big.get_rect(), border_radius=pill_h // 2
     )
-    y = max(0, (pill_h - text_h) // 2)
+    x = pad_x
+    mid = pill_h // 2
+    sep_half = max(4 * scale, pill_h // 5)
     for index, surf in enumerate(surfs):
-        big.blit(surf, (pad_x + (text_w - surf.get_width()) // 2, y))
-        y += surf.get_height()
+        big.blit(surf, (x, mid - surf.get_height() // 2))
+        x += surf.get_width()
         if index < len(surfs) - 1:
-            rule_y = y + gap // 2
-            inset = pad_x + 2 * scale
+            x += gap
             pygame.draw.line(
                 big,
                 TRANSIT_PILL_SEP,
-                (inset, rule_y),
-                (pill_w - inset, rule_y),
+                (x, mid - sep_half),
+                (x, mid + sep_half),
                 max(1, scale),
             )
-            y += gap
+            x += gap
     out_w = max(1, round(pill_w / scale))
     out_h = max(1, round(pill_h / scale))
     return pygame.transform.smoothscale(big, (out_w, out_h))
@@ -1419,31 +1412,51 @@ def draw_transit_panel(
             card_layout["times_px"], minutes, times_rgb, card_h - 16
         )
         pill_left = text_right - pill.get_width()
-        text_clip = pygame.Rect(
-            text_left,
-            card_rect.y,
-            max(1, pill_left - 10 - text_left),
-            card_rect.h,
+        full_w = max(1, text_right - text_left)
+        beside_w = max(1, pill_left - 10 - text_left)
+        title_text = calendar_panel.fit_ellipsis(title_font, title, full_w)
+        subtitle_text = calendar_panel.fit_ellipsis(sub_font, subtitle, beside_w)
+        t_surf = title_font.render(title_text, True, title_rgb)
+        show_sub = bool(subtitle_text) and (
+            mode == "bus" or subtitle_text != title_text
+        )
+        s_surf = (
+            sub_font.render(subtitle_text, True, sub_rgb) if show_sub else None
         )
         previous_clip = screen.get_clip()
-        screen.set_clip(text_clip.clip(previous_clip))
-
-        room = text_clip.width
-        title_text = calendar_panel.fit_ellipsis(title_font, title, room)
-        subtitle_text = calendar_panel.fit_ellipsis(sub_font, subtitle, room)
-        if subtitle_text and (mode == "bus" or subtitle_text != title_text):
-            t_surf = title_font.render(title_text, True, title_rgb)
-            s_surf = sub_font.render(subtitle_text, True, sub_rgb)
-            block_h = t_surf.get_height() + 3 + s_surf.get_height()
+        if s_surf is not None:
+            gap = 3
+            row_h = max(s_surf.get_height(), pill.get_height())
+            block_h = t_surf.get_height() + gap + row_h
             ty = mid_y - block_h // 2
+            screen.set_clip(
+                pygame.Rect(text_left, card_rect.y, full_w, card_rect.h).clip(
+                    previous_clip
+                )
+            )
             screen.blit(t_surf, (text_left, ty))
-            screen.blit(s_surf, (text_left, ty + t_surf.get_height() + 3))
+            sub_y = ty + t_surf.get_height() + gap
+            screen.set_clip(
+                pygame.Rect(text_left, card_rect.y, beside_w, card_rect.h).clip(
+                    previous_clip
+                )
+            )
+            screen.blit(
+                s_surf, (text_left, sub_y + (row_h - s_surf.get_height()) // 2)
+            )
+            screen.set_clip(previous_clip)
+            screen.blit(
+                pill, (pill_left, sub_y + (row_h - pill.get_height()) // 2)
+            )
         else:
-            t_surf = title_font.render(title_text, True, title_rgb)
+            screen.set_clip(
+                pygame.Rect(text_left, card_rect.y, beside_w, card_rect.h).clip(
+                    previous_clip
+                )
+            )
             screen.blit(t_surf, (text_left, mid_y - t_surf.get_height() // 2))
-
-        screen.set_clip(previous_clip)
-        screen.blit(pill, (pill_left, mid_y - pill.get_height() // 2))
+            screen.set_clip(previous_clip)
+            screen.blit(pill, (pill_left, mid_y - pill.get_height() // 2))
 
 
 def render(

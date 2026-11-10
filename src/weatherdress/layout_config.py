@@ -24,10 +24,10 @@ DEFAULT_LAYOUT = {
     # Décalage vertical fin du bloc météo (px, négatif = remonter)
     "weather_transit_vertical_offset_px": 0,
     # Tailles de police (min / max en px, bornées par l’écran)
-    "weather_temp_font_min": 44,
-    "weather_temp_font_max": 87,
-    "weather_desc_font_min": 22,
-    "weather_desc_font_max": 38,
+    "weather_temp_font_min": 58,
+    "weather_temp_font_max": 110,
+    "weather_desc_font_min": 28,
+    "weather_desc_font_max": 44,
     # Heure (pilule du haut). Sur 480 px de haut, la taille retenue est le max.
     "time_font_min": 40,
     "time_font_max": 59,
