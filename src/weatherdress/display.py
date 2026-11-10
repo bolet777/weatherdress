@@ -32,9 +32,9 @@ TRANSIT_LOWER_MARGIN = 4
 TRANSIT_CARD_HEIGHT = 80
 TRANSIT_CARD_GAP = 11
 TRANSIT_CARD_BORDER_RADIUS = 20
-TRANSIT_CARD_TITLE_PX = 16
-TRANSIT_CARD_SUBTITLE_PX = 14
-TRANSIT_CARD_TIMES_PX = 16
+TRANSIT_CARD_TITLE_PX = 13
+TRANSIT_CARD_SUBTITLE_PX = 12
+TRANSIT_CARD_TIMES_PX = 13
 TRANSIT_STRIP_MODE_LETTER_PX = 42
 TRANSIT_GLASS_AA = 3
 TRANSIT_BADGE_SIDE = 48
@@ -1421,15 +1421,18 @@ def draw_transit_panel(
         previous_clip = screen.get_clip()
         screen.set_clip(text_clip.clip(previous_clip))
 
-        if subtitle and (mode == "bus" or subtitle != title):
-            t_surf = title_font.render(title, True, title_rgb)
-            s_surf = sub_font.render(subtitle, True, sub_rgb)
+        room = text_clip.width
+        title_text = calendar_panel.fit_ellipsis(title_font, title, room)
+        subtitle_text = calendar_panel.fit_ellipsis(sub_font, subtitle, room)
+        if subtitle_text and (mode == "bus" or subtitle_text != title_text):
+            t_surf = title_font.render(title_text, True, title_rgb)
+            s_surf = sub_font.render(subtitle_text, True, sub_rgb)
             block_h = t_surf.get_height() + 3 + s_surf.get_height()
             ty = mid_y - block_h // 2
             screen.blit(t_surf, (text_left, ty))
             screen.blit(s_surf, (text_left, ty + t_surf.get_height() + 3))
         else:
-            t_surf = title_font.render(title, True, title_rgb)
+            t_surf = title_font.render(title_text, True, title_rgb)
             screen.blit(t_surf, (text_left, mid_y - t_surf.get_height() // 2))
 
         screen.set_clip(previous_clip)
