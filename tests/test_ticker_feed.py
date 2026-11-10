@@ -125,6 +125,7 @@ def test_request_asks_for_rss_without_the_app_name():
     TickerFetcher(URL, session=session).refresh()
     headers = session.headers[0]
     assert "rss+xml" in headers["Accept"]
+    assert "text/html" in headers["Accept"]
     assert "WeatherDress" not in headers["User-Agent"]
     assert TOKEN not in headers["User-Agent"]
 

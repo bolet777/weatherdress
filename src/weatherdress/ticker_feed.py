@@ -24,10 +24,15 @@ _FEED_USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/131.0.0.0 Safari/537.36"
 )
-# Radio-Canada sert parfois une page d'erreur si l'en-tête accepte trop de types.
+# Radio-Canada (edgeworker) répond « Cannot GET » en HTML, étiqueté text/xml,
+# quand Accept ne cite que des flux. Un Accept de navigateur, qui cite aussi
+# le RSS, obtient le flux. Le second essai reste strict pour l'inverse.
 _FEED_HEADERS = {
     "User-Agent": _FEED_USER_AGENT,
-    "Accept": "application/rss+xml, application/atom+xml;q=0.9, application/xml;q=0.8, text/xml;q=0.7",
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "application/rss+xml;q=0.8,*/*;q=0.7"
+    ),
 }
 _FEED_HEADERS_STRICT = {
     "User-Agent": _FEED_USER_AGENT,
