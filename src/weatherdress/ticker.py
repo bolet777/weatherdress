@@ -15,9 +15,17 @@ SAMPLE_TEXT = (
 DEFAULT_HEIGHT = 32
 DEFAULT_SPEED = 48
 LOOP_GAP = 28
-# Bande sombre : le défilement reste lisible sans prendre le pas sur la scène.
-BAND_BG = (16, 20, 28)
-BAND_FG = (236, 232, 224)
+# Verre bleu nuit, même famille que les cartes transport (14, 22, 36, 186).
+GLASS_TOP = (20, 32, 48, 186)
+GLASS_BOTTOM = (14, 22, 36, 186)
+GLASS_EDGE = (214, 224, 242, 96)
+GLASS_SHEEN = (206, 220, 238)
+TEXT_COLOR = (244, 242, 236)
+DOT_COLOR = (220, 230, 244, 255)
+SEPARATOR = "●"
+# Marge au-dessus des accents et sous les descendants, de chaque côté.
+VERTICAL_SAFETY = 2
+_PROBE = "ÉgÂjyqpçà"
 
 
 def settings(config):
@@ -113,6 +121,8 @@ def carry_offset(elapsed_s, speed_px_per_sec, period, text, state):
 
 
 _text_cache = {"key": None, "surface": None}
+_band_cache = {"key": None, "surface": None}
+_dot_cache = {}
 _scroll_state = {"text": None, "period": 0, "bias": 0}
 
 TICKER_FPS = 30
@@ -127,18 +137,71 @@ def scrolling(config):
 _font_px_cache = {}
 
 
+def _lerp(start, end, t):
+    return tuple(int(round(start[i] + (end[i] - start[i]) * t)) for i in range(len(start)))
+
+
+def _over(dst, src):
+    """Pose une couleur RGBA sur une autre. Le verre et le reflet restent distincts."""
+    sr, sg, sb, sa = src
+    dr, dg, db, da = dst
+    src_a = sa / 255
+    dst_a = da / 255
+    out_a = src_a + dst_a * (1 - src_a)
+    if out_a <= 0:
+        return (0, 0, 0, 0)
+    out = []
+    for channel, base in ((sr, dr), (sg, dg), (sb, db)):
+        out.append((channel * src_a + base * dst_a * (1 - src_a)) / out_a)
+    return tuple(int(round(channel)) for channel in (*out, out_a * 255))
+
+
+def _render_band(width, height):
+    """Dégradé, reflet et filet supérieur. Agrandi puis réduit pour adoucir le verre."""
+    scale = 2
+    big_w = max(1, width) * scale
+    big_h = max(1, height) * scale
+    surf = pygame.Surface((big_w, big_h), pygame.SRCALPHA)
+    last = max(1, big_h - 1)
+    for y in range(big_h):
+        t = y / last
+        color = _lerp(GLASS_TOP, GLASS_BOTTOM, t)
+        if t < 0.42:
+            fade = (1 - t / 0.42) ** 1.5
+            color = _over(color, (*GLASS_SHEEN, int(round(24 * fade))))
+        pygame.draw.line(surf, color, (0, y), (big_w, y))
+    out = pygame.transform.smoothscale(surf, (max(1, width), max(1, height)))
+    edge = pygame.Surface(out.get_size(), pygame.SRCALPHA)
+    pygame.draw.line(edge, GLASS_EDGE, (0, 0), (out.get_width() - 1, 0), 1)
+    out.blit(edge, (0, 0))
+    return out
+
+
+def cached_band_surface(width, height):
+    """Le fond décoratif ne dépend que de la taille du bandeau."""
+    key = (int(width), int(height))
+    if _band_cache["key"] != key:
+        _band_cache["surface"] = _render_band(*key)
+        _band_cache["key"] = key
+    return _band_cache["surface"]
+
+
+def _rendered_height(font_px):
+    font = fonts.load(font_px, "semibold")
+    return font.render(_PROBE, True, TEXT_COLOR).get_height()
+
+
 def band_font_px(band_h):
-    """Plus grand corps SemiBold qui tient dans la bande, marges comprises."""
+    """Plus grand corps dont accents et descendants tiennent, marge comprise."""
     band_h = int(band_h)
     cached = _font_px_cache.get(band_h)
     if cached is not None:
         return cached
-    limit = max(8, band_h - 4)
+    limit = max(8, band_h - 2 * VERTICAL_SAFETY)
     px = max(8, band_h)
     chosen = 8
     while px > 8:
-        font = fonts.load(px, "semibold")
-        if font.get_height() <= limit:
+        if _rendered_height(px) <= limit:
             chosen = px
             break
         px -= 1
@@ -146,12 +209,61 @@ def band_font_px(band_h):
     return chosen
 
 
+def _separator_px(font_px):
+    return max(4, min(8, int(round(font_px * 0.27))))
+
+
+def _dot_surface(diameter):
+    diameter = max(3, int(diameter))
+    cached = _dot_cache.get(diameter)
+    if cached is not None:
+        return cached
+    scale = 8
+    size = diameter * scale
+    big = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.draw.circle(big, DOT_COLOR, (size / 2, size / 2), size * 0.40)
+    small = pygame.transform.smoothscale(big, (diameter, diameter))
+    _dot_cache[diameter] = small
+    return small
+
+
+def _compose_phrase(text, font_px):
+    """Textes et pastilles, chacun centré sur son rectangle de rendu."""
+    font = fonts.load(int(font_px), "semibold")
+    pieces = text.split(SEPARATOR)
+    labels = [
+        font.render(piece, True, TEXT_COLOR) if piece else None for piece in pieces
+    ]
+    dot = _dot_surface(_separator_px(font_px)) if len(pieces) > 1 else None
+    height = font.get_height()
+    for label in labels:
+        if label is not None:
+            height = max(height, label.get_height())
+    if dot is not None:
+        height = max(height, dot.get_height())
+    width = 0
+    for index, label in enumerate(labels):
+        if label is not None:
+            width += label.get_width()
+        if dot is not None and index < len(labels) - 1:
+            width += dot.get_width()
+    strip = pygame.Surface((max(1, width), max(1, height)), pygame.SRCALPHA)
+    x = 0
+    for index, label in enumerate(labels):
+        if label is not None:
+            strip.blit(label, (x, (height - label.get_height()) // 2))
+            x += label.get_width()
+        if dot is not None and index < len(labels) - 1:
+            strip.blit(dot, (x, (height - dot.get_height()) // 2))
+            x += dot.get_width()
+    return strip
+
+
 def cached_text_surface(text, font_px):
     """La phrase n'est rendue qu'une fois. Seul le décalage change ensuite."""
-    key = (text, int(font_px), BAND_FG, "semibold")
+    key = (text, int(font_px), TEXT_COLOR, "semibold", "glass")
     if _text_cache["key"] != key:
-        font = fonts.load(font_px, "semibold")
-        _text_cache["surface"] = font.render(text, True, BAND_FG)
+        _text_cache["surface"] = _compose_phrase(text, font_px)
         _text_cache["key"] = key
     return _text_cache["surface"]
 
@@ -175,7 +287,7 @@ def paint(screen, config, elapsed_s, text=None):
     screen_w, screen_h = screen.get_size()
     band_h = spec["height"]
     band = pygame.Rect(0, max(0, screen_h - band_h), screen_w, min(band_h, screen_h))
-    pygame.draw.rect(screen, BAND_BG, band)
+    screen.blit(cached_band_surface(band.w, band.h), band.topleft)
     phrase = spec["text"] if text is None else text
     if not isinstance(phrase, str) or not phrase.strip():
         return band

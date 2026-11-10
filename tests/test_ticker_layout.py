@@ -142,11 +142,101 @@ def _above_band(screen, band_h):
     return pygame.image.tostring(screen.subsurface((0, 0, screen.get_width(), height)), "RGB")
 
 
+def _probe_height(px):
+    return fonts.load(px, "semibold").render("ÉgÂjyqpçà", True, (255, 255, 255)).get_height()
+
+
+def _assert_night_glass(rgb):
+    """Verre bleu nuit vu sur le fond blanc des scènes de test."""
+    red, green, blue = rgb
+    assert blue > red
+    assert green >= red
+    assert 50 < red < 150
+    assert 60 < blue < 180
+
+
 def test_band_font_fills_the_strip():
     px = ticker.band_font_px(32)
-    height = fonts.load(px, "semibold").get_height()
-    assert height <= 28
-    assert fonts.load(px + 1, "semibold").get_height() > 28
+    limit = 32 - 2 * ticker.VERTICAL_SAFETY
+    assert _probe_height(px) <= limit
+    assert _probe_height(px + 1) > limit
+
+
+def test_glass_band_is_cached_and_translucent():
+    first = ticker.cached_band_surface(800, 32)
+    assert ticker.cached_band_surface(800, 32) is first
+    config = {"ticker": {"enabled": True, "height_px": 32, "text": ""}}
+    light = pygame.Surface(SIZE)
+    dark = pygame.Surface(SIZE)
+    light.fill((248, 250, 255))
+    dark.fill((10, 12, 20))
+    ticker.paint(light, config, 0)
+    ticker.paint(dark, config, 0)
+    light_bottom = light.get_at((40, 478))[:3]
+    dark_bottom = dark.get_at((40, 478))[:3]
+    light_top = light.get_at((40, 452))[:3]
+    edge = light.get_at((40, 448))[:3]
+    assert sum(light_bottom) > sum(dark_bottom) + 20
+    assert sum(light_top) > sum(light_bottom)
+    assert sum(edge) > sum(light_top)
+    assert edge[0] < 180
+    _assert_night_glass(light_bottom)
+    again = pygame.Surface(SIZE)
+    again.fill((248, 250, 255))
+    ticker.paint(again, config, 0)
+    assert pygame.image.tostring(light, "RGB") == pygame.image.tostring(again, "RGB")
+
+
+def test_separator_circle_is_vertically_centered():
+    px = ticker.band_font_px(32)
+    surf = ticker.cached_text_surface("Été  ●  gym", px)
+    height = surf.get_height()
+    center = (height - 1) / 2
+    columns = []
+    for x in range(surf.get_width()):
+        opaque = [y for y in range(height) if surf.get_at((x, y)).a > 80]
+        if not opaque:
+            continue
+        top, bottom = opaque[0], opaque[-1]
+        if bottom - top <= 6 and abs((top + bottom) / 2 - center) <= 2:
+            columns.append((x, top, bottom))
+    assert columns
+    groups = []
+    group = [columns[0]]
+    for column in columns[1:]:
+        if column[0] == group[-1][0] + 1:
+            group.append(column)
+        else:
+            groups.append(group)
+            group = [column]
+    groups.append(group)
+    dot = max(groups, key=lambda item: len(item))
+    top = min(column[1] for column in dot)
+    bottom = max(column[2] for column in dot)
+    assert abs((top + bottom) / 2 - (height - 1) / 2) <= 1.5
+    assert abs((bottom - top) - (dot[-1][0] - dot[0][0])) <= 2
+    left = dot[0][0]
+    right = dot[-1][0]
+
+    def _max_alpha(x):
+        return max(surf.get_at((x, y)).a for y in range(height))
+
+    while left > 0 and _max_alpha(left - 1) > 8:
+        left -= 1
+    while right < surf.get_width() - 1 and _max_alpha(right + 1) > 8:
+        right += 1
+    gap_before = 0
+    x = left - 1
+    while x >= 0 and _max_alpha(x) <= 8:
+        gap_before += 1
+        x -= 1
+    gap_after = 0
+    x = right + 1
+    while x < surf.get_width() and _max_alpha(x) <= 8:
+        gap_after += 1
+        x += 1
+    assert gap_before > 4 and gap_after > 4
+    assert abs(gap_before - gap_after) <= 2
 
 
 def test_cached_text_surface_is_reused():
@@ -345,7 +435,7 @@ def test_agenda_panel_stops_above_the_band(monkeypatch):
     assert metrics["side"] == "calendar"
     assert metrics["panel"] is not None
     assert metrics["panel"].bottom <= metrics["content_bottom"]
-    assert screen.get_at((10, 479))[:3] == ticker.BAND_BG
+    _assert_night_glass(screen.get_at((10, 479))[:3])
 
 
 def _with_fitted_cards(config):
@@ -365,7 +455,7 @@ def test_fitted_cards_keep_bus_and_metro_above_the_black_band(monkeypatch):
     assert metrics["panel"].bottom <= metrics["content_bottom"]
     assert metrics["character_bottom"] <= metrics["content_bottom"]
     assert metrics["weather_bottom"] <= metrics["content_bottom"]
-    assert screen.get_at((400, 470))[:3] == ticker.BAND_BG
+    _assert_night_glass(screen.get_at((400, 470))[:3])
 
 
 def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
@@ -377,8 +467,8 @@ def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
     )
     assert early_metrics["transit_row_count"] == 1
     assert pygame.image.tostring(early, "RGB") == pygame.image.tostring(later, "RGB")
-    assert early.get_at((0, 479))[:3] == ticker.BAND_BG
-    assert early.get_at((799, 450))[:3] == ticker.BAND_BG
+    _assert_night_glass(early.get_at((0, 479))[:3])
+    _assert_night_glass(early.get_at((799, 450))[:3])
 
 
 def test_only_the_band_moves_between_two_instants(monkeypatch):
