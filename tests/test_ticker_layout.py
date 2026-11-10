@@ -146,13 +146,13 @@ def _probe_height(px):
     return fonts.load(px, "semibold").render("ÉgÂjyqpçà", True, (255, 255, 255)).get_height()
 
 
-def _assert_night_glass(rgb):
-    """Verre bleu nuit vu sur le fond blanc des scènes de test."""
+def _assert_light_glass(rgb):
+    """Verre bleu clair vu sur le fond blanc des scènes de test."""
     red, green, blue = rgb
     assert blue > red
     assert green >= red
-    assert 50 < red < 150
-    assert 60 < blue < 180
+    assert 150 < red < 230
+    assert 200 < blue <= 255
 
 
 def test_band_font_fills_the_strip():
@@ -179,8 +179,7 @@ def test_glass_band_is_cached_and_translucent():
     assert sum(light_bottom) > sum(dark_bottom) + 20
     assert sum(light_top) > sum(light_bottom)
     assert sum(edge) > sum(light_top)
-    assert edge[0] < 180
-    _assert_night_glass(light_bottom)
+    _assert_light_glass(light_bottom)
     again = pygame.Surface(SIZE)
     again.fill((248, 250, 255))
     ticker.paint(again, config, 0)
@@ -435,7 +434,7 @@ def test_agenda_panel_stops_above_the_band(monkeypatch):
     assert metrics["side"] == "calendar"
     assert metrics["panel"] is not None
     assert metrics["panel"].bottom <= metrics["content_bottom"]
-    _assert_night_glass(screen.get_at((10, 479))[:3])
+    _assert_light_glass(screen.get_at((10, 479))[:3])
 
 
 def _with_fitted_cards(config):
@@ -455,7 +454,7 @@ def test_fitted_cards_keep_bus_and_metro_above_the_black_band(monkeypatch):
     assert metrics["panel"].bottom <= metrics["content_bottom"]
     assert metrics["character_bottom"] <= metrics["content_bottom"]
     assert metrics["weather_bottom"] <= metrics["content_bottom"]
-    _assert_night_glass(screen.get_at((400, 470))[:3])
+    _assert_light_glass(screen.get_at((400, 470))[:3])
 
 
 def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
@@ -467,8 +466,8 @@ def test_empty_band_stays_black_and_leaves_the_scene_still(monkeypatch):
     )
     assert early_metrics["transit_row_count"] == 1
     assert pygame.image.tostring(early, "RGB") == pygame.image.tostring(later, "RGB")
-    _assert_night_glass(early.get_at((0, 479))[:3])
-    _assert_night_glass(early.get_at((799, 450))[:3])
+    _assert_light_glass(early.get_at((0, 479))[:3])
+    _assert_light_glass(early.get_at((799, 450))[:3])
 
 
 def test_only_the_band_moves_between_two_instants(monkeypatch):

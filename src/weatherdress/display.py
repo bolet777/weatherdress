@@ -44,15 +44,15 @@ TRANSIT_BADGE_RADIUS = 12
 TRANSIT_BADGE_BG = (47, 116, 242)
 # Ancien nom du bandeau : le badge bus et métro partage cette couleur.
 TRANSIT_CARD_STRIP_BUS = TRANSIT_BADGE_BG
-# Verre sombre, peu saturé, un peu transparent : le fond reste lisible derrière.
-TRANSIT_CARD_GLASS = (14, 22, 36, 186)
-TRANSIT_CARD_BORDER = (214, 224, 242, 120)
-TRANSIT_DIVIDER = (214, 224, 242, 150)
-TRANSIT_TITLE = (255, 255, 255)
-TRANSIT_SUBTITLE = (186, 196, 214)
+# Même bleu clair que les disques d’accessoires, à l’opacité des anciennes cartes.
+TRANSIT_CARD_GLASS = (148, 196, 240, 186)
+TRANSIT_CARD_BORDER = (255, 255, 255, 170)
+TRANSIT_DIVIDER = (32, 44, 62, 70)
+TRANSIT_TITLE = (32, 44, 62)
+TRANSIT_SUBTITLE = (70, 88, 112)
 TRANSIT_TIMES = (242, 164, 62)
-TRANSIT_TIMES_PILL = (8, 16, 34, 168)
-TRANSIT_PILL_SEP = (230, 236, 245, 170)
+TRANSIT_TIMES_PILL = (255, 255, 255, 168)
+TRANSIT_PILL_SEP = (32, 44, 62, 90)
 
 def _rgb_setting(config, key, default):
     """Lit une couleur RGB depuis config[key] : \"#rrggbb\" ou [R,G,B]. Sinon default."""
@@ -1094,7 +1094,7 @@ def _glass_line(big, scale, color, start, end):
 
 
 def paint_glass_card(screen, rect, draw_extra=None):
-    """Carte verre : fond sombre translucide, liseré clair, coins arrondis."""
+    """Carte verre : fond bleu clair translucide, liseré blanc, coins arrondis."""
     rect = pygame.Rect(rect)
     if rect.w < 2 or rect.h < 2:
         return
@@ -1397,7 +1397,7 @@ def draw_transit_panel(
 ):
     """
     transit_data : {"bus": {stop_id: {"route", "label", "minutes"}}, "metro": {headsign: [int, ...]}}
-    Cartes verre : badge bleu, titre blanc, horaires dans une capsule.
+    Cartes verre clair : badge bleu, titre foncé, horaires dans une capsule.
 
     Si transit.transit_alternate_seconds > 0 (défaut 5), un seul arrêt bus et une seule
     direction métro à la fois, alternés toutes les N secondes (même phase). Si la clé

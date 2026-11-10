@@ -15,13 +15,13 @@ SAMPLE_TEXT = (
 DEFAULT_HEIGHT = 32
 DEFAULT_SPEED = 48
 LOOP_GAP = 28
-# Verre bleu nuit, même famille que les cartes transport (14, 22, 36, 186).
-GLASS_TOP = (20, 32, 48, 186)
-GLASS_BOTTOM = (14, 22, 36, 186)
-GLASS_EDGE = (214, 224, 242, 96)
-GLASS_SHEEN = (206, 220, 238)
-TEXT_COLOR = (244, 242, 236)
-DOT_COLOR = (220, 230, 244, 255)
+# Même verre que les cartes transport : display.TRANSIT_CARD_GLASS (148, 196, 240, 186).
+GLASS_TOP = (186, 220, 250, 186)
+GLASS_BOTTOM = (148, 196, 240, 186)
+GLASS_EDGE = (255, 255, 255, 150)
+GLASS_SHEEN = (255, 255, 255)
+TEXT_COLOR = (32, 44, 62)
+DOT_COLOR = (70, 88, 112, 255)
 SEPARATOR = "●"
 # Marge au-dessus des accents et sous les descendants, de chaque côté.
 VERTICAL_SAFETY = 2

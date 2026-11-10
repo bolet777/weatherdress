@@ -24,14 +24,14 @@ _MAX_PX = 24
 _FONT_FLOOR = 0.80
 
 TODAY_TIME = (242, 164, 62)
-TODAY_TEXT = (255, 255, 255)
-TODAY_HEADER = (255, 255, 255)
-NEXT_TEXT = (176, 186, 204)
+TODAY_TEXT = (32, 44, 62)
+TODAY_HEADER = (32, 44, 62)
+NEXT_TEXT = (70, 88, 112)
 NEXT_TIME = (242, 164, 62)
-WASH_RGBA = (255, 255, 255, 22)
-EVENT_WASH_RGBA = (255, 186, 96, 28)
-# Filets de l'agenda, plus discrets que le séparateur des cartes transport.
-AGENDA_RULE = (206, 214, 226, 36)
+WASH_RGBA = (255, 255, 255, 64)
+EVENT_WASH_RGBA = (255, 206, 130, 96)
+# Filets de l'agenda, visibles sur le verre clair.
+AGENDA_RULE = (32, 44, 62, 80)
 
 _WEEKDAYS = ("lun.", "mar.", "mer.", "jeu.", "ven.", "sam.", "dim.")
 _MONTHS = (
