@@ -71,7 +71,7 @@ def test_default_file_covers_layout_and_app_keys():
     }
     assert data["api_key"] == "VOTRE_CLE_OPENWEATHERMAP_ICI"
     assert data["transit"]["stm_api_key"] == "VOTRE_CLE_API_STM_ICI"
-    assert data["identity_on_each_refresh"] is False
+    assert data["identity_on_each_refresh"] is True
     for dead in (
         "weather_top_pct",
         "forecast_step_hours",
