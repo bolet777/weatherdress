@@ -347,7 +347,8 @@ def main():
 
     rotate_identity = identity_config.identity_on_each_refresh(config)
     chars_dir = os.path.join(IMAGES_DIR, "characters")
-    gender, number = outfit.pick_identity(config, chars_dir)
+    identity_cycle = outfit.IdentityCycle()
+    gender, number = outfit.pick_identity(config, chars_dir, cycle=identity_cycle)
 
     refresh_interval = config["refresh_minutes"] * 60
     last_refresh = 0
@@ -464,7 +465,7 @@ def main():
                 )
                 if rotate_identity:
                     gender, number = outfit.pick_identity(
-                        config, chars_dir, current_weather_data
+                        config, chars_dir, current_weather_data, identity_cycle
                     )
                 current_outfit = outfit.get_outfit_with_identity(
                     current_weather_data, forecast, gender, number

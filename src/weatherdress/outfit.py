@@ -266,42 +266,80 @@ def character_sprite_prefix(ctype):
     return ctype
 
 
-def pick_identity(config=None, characters_dir=None, current_weather=None):
+class IdentityCycle:
+    """Paquet des PNG réellement présents pour une tenue.
+
+    Chaque personnage pioché sort du paquet. Homme et femme alternent tant
+    que les deux y restent. Le paquet vide est reformé avec tous les fichiers
+    de cette tenue, sans rejouer tout de suite celui encore affiché.
     """
-    Choisit genre et numéro de variante.
 
-    Si ``characters_dir`` pointe vers ``images/characters``, les numéros possibles
-    sont ceux pour lesquels un PNG existe pour le préfixe météo courant (ou
-    ``normal`` si pas encore de météo). Tirage uniforme dans cette liste.
+    def __init__(self):
+        self._remaining = {}
+        self._roster = {}
+        self._last = None
 
-    Clé optionnelle ``character_variant_max`` (> 0) : clip de la liste
-    (n <= max). Si le répertoire est absent ou vide, repli sur l’ancien tirage
-    ``1…character_variant_max`` (défaut 6).
-    """
-    cfg = config or {}
-    gender = random.choice(["woman", "man"])
+    def pick(self, prefix, numbers_by_gender):
+        available = [
+            (gender, number)
+            for gender in ("woman", "man")
+            for number in numbers_by_gender.get(gender, ())
+        ]
+        if not available:
+            return None
+        remaining = self._sync(prefix, available)
+        if not remaining:
+            remaining = list(available)
+            random.shuffle(remaining)
+            self._remaining[prefix] = remaining
+        choice = self._choose(remaining)
+        remaining.remove(choice)
+        self._last = (prefix, choice[0], choice[1])
+        return choice
 
-    def _fallback_randint():
-        max_n = int(cfg.get("character_variant_max", 6))
-        max_n = max(1, min(max_n, 99))
-        return random.randint(1, max_n)
+    def _sync(self, prefix, available):
+        roster = frozenset(available)
+        remaining = self._remaining.get(prefix)
+        if remaining is None or self._roster.get(prefix) != roster:
+            if remaining is None or prefix not in self._roster:
+                remaining = list(available)
+                random.shuffle(remaining)
+            else:
+                old = self._roster[prefix]
+                kept = [item for item in remaining if item in roster]
+                added = [item for item in available if item not in old]
+                random.shuffle(added)
+                remaining = kept + added
+            self._roster[prefix] = roster
+            self._remaining[prefix] = remaining
+        return self._remaining[prefix]
 
-    if not characters_dir or not os.path.isdir(characters_dir):
-        return gender, _fallback_randint()
+    def _choose(self, remaining):
+        last = None if self._last is None else (self._last[1], self._last[2])
+        if self._last is None:
+            gender = random.choice(tuple({item[0] for item in remaining}))
+            for item in remaining:
+                if item[0] == gender:
+                    return item
+        else:
+            gender = "man" if self._last[1] == "woman" else "woman"
+            for item in remaining:
+                if item[0] == gender and item != last:
+                    return item
+        for item in remaining:
+            if item != last:
+                return item
+        return remaining[0]
 
-    if current_weather is not None:
-        ctype = character_type(current_weather["temp"], current_weather["snow"])
-        prefix = character_sprite_prefix(ctype)
-    else:
-        prefix = "normal"
 
+def _eligible_variant_numbers(config, characters_dir, prefix, gender):
+    """Numéros dont le PNG existe. ``character_variant_max`` ne fait que clipper."""
     nums = character_assets.list_character_variant_numbers(
         characters_dir, prefix, gender
     )
     if not nums:
-        return gender, _fallback_randint()
-
-    raw_cap = cfg.get("character_variant_max")
+        return []
+    raw_cap = config.get("character_variant_max")
     try:
         cap = int(raw_cap) if raw_cap is not None else None
     except (TypeError, ValueError):
@@ -309,10 +347,48 @@ def pick_identity(config=None, characters_dir=None, current_weather=None):
     if cap is not None and cap > 0:
         clipped = [n for n in nums if n <= cap]
         if clipped:
-            nums = clipped
+            return clipped
+    return list(nums)
 
-    number = random.choice(nums)
-    return gender, number
+
+def _fallback_numbers(config):
+    max_n = int(config.get("character_variant_max", 6))
+    max_n = max(1, min(max_n, 99))
+    return list(range(1, max_n + 1))
+
+
+def _sprite_prefix(current_weather):
+    if current_weather is None:
+        return "normal"
+    ctype = character_type(current_weather["temp"], current_weather["snow"])
+    return character_sprite_prefix(ctype)
+
+
+def pick_identity(config=None, characters_dir=None, current_weather=None, cycle=None):
+    """
+    Prochain personnage pour la tenue courante.
+
+    La liste est celle des PNG ``{prefix}_{woman|man}{n}.png`` présents
+    (``normal`` avant la première météo). ``cycle`` retient le paquet d'une
+    lecture à l'autre. Sans paquet fourni, un seul tirage est fait.
+
+    ``character_variant_max`` (> 0) limite cette liste à ``n <= max``.
+    Répertoire absent, ou aucun PNG pour la tenue : repli sur ``1…max``
+    (défaut 6), avec la même alternance.
+    """
+    cfg = config or {}
+    if cycle is None:
+        cycle = IdentityCycle()
+    prefix = _sprite_prefix(current_weather)
+    if characters_dir and os.path.isdir(characters_dir):
+        numbers = {
+            gender: _eligible_variant_numbers(cfg, characters_dir, prefix, gender)
+            for gender in ("woman", "man")
+        }
+        if any(numbers.values()):
+            return cycle.pick(prefix, numbers)
+    span = _fallback_numbers(cfg)
+    return cycle.pick(prefix, {"woman": span, "man": span})
 
 
 def _with_sun_times(weather, sunrise, sunset):

@@ -1,4 +1,5 @@
 from weatherdress.outfit import (
+    IdentityCycle,
     active_accessories,
     character_type,
     get_outfit_with_identity,
@@ -427,6 +428,71 @@ def test_pick_identity_chooses_only_existing_variants(tmp_path):
         assert n in (1, 3, 6)
         seen.add((g, n))
     assert len(seen) >= 4
+
+
+def _touch(directory, names):
+    for name in names:
+        (directory / name).write_bytes(b"")
+
+
+def test_identity_cycle_covers_the_files_on_disk_before_repeating(tmp_path):
+    directory = tmp_path / "ch"
+    directory.mkdir()
+    _touch(
+        directory,
+        (
+            "normal_woman1.png",
+            "normal_woman4.png",
+            "normal_man2.png",
+            "hot_woman9.png",
+        ),
+    )
+    weather = {"temp": 20, "snow": 0}
+    cycle = IdentityCycle()
+    roster = [("man", 2), ("woman", 1), ("woman", 4)]
+
+    def draw(count):
+        return [
+            pick_identity({}, str(directory), weather, cycle) for _ in range(count)
+        ]
+
+    first = draw(3)
+    second = draw(3)
+    assert sorted(first) == roster
+    assert sorted(second) == roster
+    assert first[1][0] != first[0][0]
+    assert all(left != right for left, right in zip(first, first[1:]))
+    assert second[0] != first[-1]
+    assert all(number != 9 for _, number in first + second)
+
+
+def test_identity_cycle_alternates_a_single_gender_without_immediate_repeat(tmp_path):
+    directory = tmp_path / "ch"
+    directory.mkdir()
+    _touch(directory, ("cold_woman1.png", "cold_woman3.png", "cold_woman8.png"))
+    weather = {"temp": 0, "snow": 0}
+    cycle = IdentityCycle()
+    numbers = [
+        pick_identity({}, str(directory), weather, cycle)[1] for _ in range(6)
+    ]
+    assert sorted(numbers[:3]) == [1, 3, 8]
+    assert sorted(numbers[3:]) == [1, 3, 8]
+    assert numbers[3] != numbers[2]
+    assert all(left != right for left, right in zip(numbers, numbers[1:]))
+
+
+def test_identity_cycle_changes_roster_with_the_weather_prefix(tmp_path):
+    directory = tmp_path / "ch"
+    directory.mkdir()
+    _touch(
+        directory,
+        ("normal_woman1.png", "normal_man1.png", "hot_woman7.png", "hot_man8.png"),
+    )
+    cycle = IdentityCycle()
+    first = pick_identity({}, str(directory), {"temp": 20, "snow": 0}, cycle)
+    second = pick_identity({}, str(directory), {"temp": 30, "snow": 0}, cycle)
+    assert second[0] != first[0]
+    assert second == (("man", 8) if second[0] == "man" else ("woman", 7))
 
 
 def test_pick_identity_fallback_when_no_matching_files(tmp_path):

@@ -246,7 +246,7 @@ make test
 ## Personnages : variantes et repli automatique
 
 - Les types **très froid / très chaud** du moteur météo utilisent les sprites **`cold_*`** et **`hot_*`** (pas de fichiers `verycold` / `veryhot` requis).
-- **Tirage d’identité** : pour le préfixe courant (`normal` avant la première météo, puis le préfixe dérivé de la température / neige), l’app liste les PNG **`{prefix}_{woman|man}{n}.png`** présents et choisit `n` au hasard dans cette liste. La clé **`character_variant_max`** (> 0) limite ce choix à `n ≤ max` ; absente ou ≤ 0 : toutes les variantes trouvées sur le disque.
+- **Tirage d’identité** : pour le préfixe courant (`normal` avant la première météo, puis le préfixe dérivé de la température / neige), l’app liste les PNG **`{prefix}_{woman|man}{n}.png`** présents. Ce paquet est parcouru sans remise : homme et femme alternent tant que les deux restent dedans, puis les fichiers encore non montrés passent. Le paquet vide est reformé en entier, sans rejouer tout de suite le personnage affiché. La clé **`character_variant_max`** (> 0) limite cette liste à `n ≤ max` ; absente ou ≤ 0 : toutes les variantes trouvées sur le disque.
 - Sans répertoire valide ou sans fichier pour le préfixe / genre : repli sur un entier aléatoire **`1…character_variant_max`** (défaut 6).
 - À l’**affichage**, si `normal_woman5.png` est absent, l’app charge **`normal_woman4`** … jusqu’à **`…1`** dès qu’un fichier existe (repli distinct du tirage d’identité).
 
